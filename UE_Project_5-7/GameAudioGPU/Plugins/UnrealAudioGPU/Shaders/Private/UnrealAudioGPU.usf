@@ -1,0 +1,8 @@
+#pragma once
+#include "/Engine/Public/Platform.ush"
+
+[numthreads(64, 64, 1)]
+void UnrealAudioGPU(uint3 DispatchThreadID : SV_DispatchThreadID, uint3 GroupID : SV_GroupID, uint3 GroupThreadID : SV_GroupThreadID)
+{
+    // Compute shader code goes here
+}
