@@ -38,6 +38,9 @@ public class UnrealAudioGPU_Shaders : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+				"RHI",
+				"RenderCore",
+				"Projects",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
