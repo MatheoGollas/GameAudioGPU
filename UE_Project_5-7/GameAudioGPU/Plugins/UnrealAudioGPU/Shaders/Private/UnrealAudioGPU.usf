@@ -1,17 +1,17 @@
 #pragma once
 #include "/Engine/Public/Platform.ush"
+#define NUM_THREADS 64
+//uint NUM_THREADS = 64;
+RWStructuredBuffer<float3> EmitterPosBuffer;
+float3 ListenerPos;
+float3 CharacterPos;
 
-uint Resolution;
-RWTexture2D<float2> OutTex;
-
-[numthreads(8, 8, 1)]
-void ReturnUV(uint3 DispatchThreadID : SV_DispatchThreadID)
+[numthreads(NUM_THREADS, 1, 1)]
+void UpdateThirdPersonEmitters(uint3 DispatchThreadID : SV_DispatchThreadID)
 {
-    if(DispatchThreadID.x >= Resolution || DispatchThreadID.y >= Resolution) return;
-    
-    const float TexelSize = 1.0/ float(Resolution);
+    float3 EmitterPos = EmitterPosBuffer[DispatchThreadID.x];
+    float3 O = normalize(EmitterPos - ListenerPos);
+    float A = length(EmitterPos - CharacterPos);
 
-    float2 UV = (float2(DispatchThreadID.xy) + 0.5) * TexelSize;
-    OutTex[DispatchThreadID.xy] = UV;
-    //OutTex[DispatchThreadID.xy] = 1.0.xx;
+    EmitterPosBuffer[DispatchThreadID.x] = ListenerPos + (O * A);
 }

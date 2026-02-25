@@ -3,7 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Components/SceneComponent.h"
 #include "Subsystems/LocalPlayerSubsystem.h"
+#include <UObject/WeakObjectPtrTemplates.h>
 #include "AudioGPUSubsystem.generated.h"
 
 /**
@@ -19,10 +21,12 @@ public:
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 
 	UFUNCTION(BlueprintCallable)
-	bool SetRenderTarget(UTextureRenderTarget2D* InRT);
+	bool AddEmitterToBuffer(USceneComponent* InEmitter);
 
 	UFUNCTION(BlueprintCallable)
-	bool DrawRenderTarget();
+	bool UpdateEmitters();
+
 private:
-	TWeakObjectPtr<UTextureRenderTarget2D> RT;
+	TWeakObjectPtr<USceneComponent> ListenerComponent;
+
 };
