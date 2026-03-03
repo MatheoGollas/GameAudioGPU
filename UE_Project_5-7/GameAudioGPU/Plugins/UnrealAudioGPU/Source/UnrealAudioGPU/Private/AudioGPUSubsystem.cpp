@@ -7,17 +7,22 @@
 #include "RHICommandList.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
+#include "HAL/Platform.h"
+#include "RHIGPUReadback.h"
 #include "Shader_Processor.h"
 #include <RenderGraphFwd.h>
 
 void UAudioGPUSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+	Readback = new FRHIGPUBufferReadback(TEXT("AudioGPUReadback"));
 }
 
 void UAudioGPUSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
+	delete Readback;
+	Readback = nullptr;
 }
 
 bool UAudioGPUSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -27,7 +32,40 @@ bool UAudioGPUSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 
 bool UAudioGPUSubsystem::AddEmitterToBuffer(USceneComponent* InEmitter)
 {
-	return false;
+	if (!IsValid(InEmitter))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Invalid Emitter Component"));
+		return false;
+	}
+
+	if (Emitters.Contains(InEmitter))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Emitter already exists in buffer"));
+		return true;
+	}
+
+	Emitters.Add(InEmitter);
+
+	return true;
+}
+
+bool UAudioGPUSubsystem::RemoveEmitterFromBuffer(USceneComponent* InEmitter)
+{
+	if (!IsValid(InEmitter))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Invalid Emitter Component"));
+		return false;
+	}
+
+	if (!Emitters.Contains(InEmitter))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Emitter not in buffer"));
+		return false;
+	}
+
+	Emitters.Remove(InEmitter);
+
+	return true;
 }
 
 bool UAudioGPUSubsystem::UpdateEmitters()
@@ -39,135 +77,91 @@ bool UAudioGPUSubsystem::UpdateEmitters()
 		return false;
 	}
 
-	ULocalPlayer* LocalPlayer = GetLocalPlayer();
-	if (!IsValid(LocalPlayer))
+	if (Emitters.IsEmpty())
 	{
-		UE_LOG(LogTemp, Error, TEXT("Invalid Local Player"));
-		return false;
+		UE_LOG(LogTemp, Warning, TEXT("No emitters to update"));
+		return true;
 	}
 
-	APlayerController* Controller = LocalPlayer->GetPlayerController(World);
-	if (!IsValid(LocalPlayer))
-	{
-		UE_LOG(LogTemp, Error, TEXT("Invalid Local Player"));
-		return false;
-	}
+	FVector3f CharacterPos;
 
-	APawn* Pawn = Controller->GetPawn();
+	if (IsValid(CharacterComponent.Get()))
+	{
+		CharacterPos = FVector3f(CharacterComponent.Get()->GetComponentLocation());
+	}
+	else
+	{
+		ULocalPlayer* LocalPlayer = GetLocalPlayer();
+		if (!IsValid(LocalPlayer))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Invalid Local Player"));
+			return false;
+		}
+
+		APlayerController* Controller = LocalPlayer->GetPlayerController(World);
+		if (!IsValid(LocalPlayer))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Invalid Local Player"));
+			return false;
+		}
+
+		APawn* Pawn = Controller->GetPawn();
+		CharacterPos = FVector3f(Pawn->GetActorLocation());
+	}
 
 	if (!IsValid(ListenerComponent.Get()))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Invalid Listener Component"));
 		return false;
 	}
-
-	FVector ListenerPos = ListenerComponent.Get()->GetComponentLocation();
-	FVector CharacterPos = Pawn->GetActorLocation();
+	FVector3f ListenerPos = FVector3f(ListenerComponent.Get()->GetComponentLocation());
+	
 	ERHIFeatureLevel::Type FeatureLevel = World->Scene->GetFeatureLevel();
 
+	TArray<TWeakObjectPtr<USceneComponent>> EmitterComponents = Emitters;
+
+	FRHIGPUBufferReadback* ReadbackCopy = Readback;
+
 	ENQUEUE_RENDER_COMMAND(AudioGPU)(
-		[ListenerPos, CharacterPos, FeatureLevel](FRHICommandListImmediate& RHICmdList)
+		[ListenerPos, CharacterPos, EmitterComponents, FeatureLevel, ReadbackCopy](FRHICommandListImmediate& RHICmdList)
 		{
 			FRDGBuilder GraphBuilder(RHICmdList);
 
 			FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(FeatureLevel);
 
-			FRDGBufferRef BufferRef = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FVector), 500), TEXT("EmitterPosBuffer"));
+			TArray<FVector3f> EmitterPositions;
+			for (TWeakObjectPtr<USceneComponent> cmpnt : EmitterComponents)
+			{
+				EmitterPositions.Add(FVector3f(cmpnt.Get()->GetComponentLocation()));
+			}
 
-			
+			FRDGBufferRef BufferRef =
+			CreateStructuredBuffer(GraphBuilder, TEXT("EmitterPosBuffer"), sizeof(FVector3f), EmitterPositions.Num(), EmitterPositions.GetData(), (uint64)EmitterPositions.Num() * sizeof(FVector3f));
 
-			FShader_ProcessorShaderInterface::AddPass_RenderThread(GraphBuilder, GlobalShaderMap, ListenerPos, CharacterPos, BufferRef);
-			//AddCopyTexturePass(GraphBuilder, PersistentRDGTexture, RDGTexture);
+			FShader_ProcessorShaderInterface::AddPass_RenderThread(GraphBuilder, GlobalShaderMap, ListenerPos, CharacterPos, BufferRef, ReadbackCopy, EmitterComponents);
 
 			GraphBuilder.Execute();
 		}
 		);
 	return true;
-
-
-
-	return false;
 }
 
-/*bool UAudioGPUSubsystem::SetRenderTarget(UTextureRenderTarget2D* InRT)
+void UAudioGPUSubsystem::SetListener(USceneComponent* cmpnt)
 {
-	if(IsValid(InRT))
+	if (!IsValid(cmpnt))
 	{
-		RT = InRT;
-		return true;
+		UE_LOG(LogTemp, Error, TEXT("Invalid Listener Component"));
+		return;
 	}
-	return false;
-}*/
+	ListenerComponent = cmpnt;
+}
 
-/*bool UAudioGPUSubsystem::DrawRenderTarget()
+void UAudioGPUSubsystem::SetCharacter(USceneComponent* cmpnt)
 {
-	if (!RT.IsValid())
+	if (!IsValid(cmpnt))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Invalid Render Target"));
-		return false;
+		UE_LOG(LogTemp, Error, TEXT("Invalid Character Component"));
+		return;
 	}
-
-	FTextureRenderTargetResource* RTResource = RT.Get()->GameThread_GetRenderTargetResource();
-
-	const int32 Resolution = RT.Get()->SizeX;
-	if (Resolution <= 0)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Invalid Render Target Resolution"));
-		return false;
-	}
-
-	if (RT.Get()->SizeY != Resolution)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Render Target must be square"));
-		return false;
-	}
-
-	if (RT.Get()->GetFormat() != EPixelFormat::PF_G16R16F)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Render Target must be in PF_G16R16F format"));
-		return false;
-	}
-	
-	UWorld* World = GetWorld();
-	if (!IsValid(World))
-	{
-		UE_LOG(LogTemp, Error, TEXT("Invalid World"));
-		return false;
-	}
-	
-	ULocalPlayer* LocalPlayer = GetLocalPlayer();
-	if (!IsValid(LocalPlayer))
-	{
-		UE_LOG(LogTemp, Error, TEXT("Invalid Local Player"));
-		return false;
-	}
-	
-
-	ERHIFeatureLevel::Type FeatureLevel = World->Scene->GetFeatureLevel();
-
-	ENQUEUE_RENDER_COMMAND(AudioGPU)(
-		[Resolution, RTResource, FeatureLevel](FRHICommandListImmediate& RHICmdList)
-		{
-			FRDGBuilder GraphBuilder(RHICmdList);
-
-			FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(FeatureLevel);
-
-			FRHITexture* OutputTexture = RTResource->GetRenderTargetTexture();
-			FRDGTextureRef RDGTexture = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(OutputTexture, TEXT("AudioGPUOutput")));
-
-			FRDGTextureDesc PersistentDesc = FRDGTextureDesc::Create2D(
-				FIntPoint(Resolution, Resolution),
-				PF_G16R16F,
-				FClearValueBinding::Black,
-				ETextureCreateFlags::ShaderResource | ETextureCreateFlags::UAV
-			);
-			FRDGTextureRef PersistentRDGTexture = GraphBuilder.CreateTexture(PersistentDesc, TEXT("AudioGPUPersistent"));
-
-			FShader_ProcessorShaderInterface::AddPass_RenderThread(GraphBuilder, GlobalShaderMap, Resolution, PersistentRDGTexture);
-			AddCopyTexturePass(GraphBuilder, PersistentRDGTexture, RDGTexture);
-			
-			GraphBuilder.Execute();
-		}
-		);
-	return true;
-}*/
+	CharacterComponent = cmpnt;
+}

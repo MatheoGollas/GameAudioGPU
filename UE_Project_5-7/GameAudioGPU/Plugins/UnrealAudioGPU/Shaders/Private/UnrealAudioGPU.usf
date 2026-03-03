@@ -5,10 +5,15 @@
 RWStructuredBuffer<float3> EmitterPosBuffer;
 float3 ListenerPos;
 float3 CharacterPos;
+uint NumEmitters;
 
 [numthreads(NUM_THREADS, 1, 1)]
 void UpdateThirdPersonEmitters(uint3 DispatchThreadID : SV_DispatchThreadID)
 {
+    if(DispatchThreadID.x >= NumEmitters)
+    {
+        return;
+    }
     float3 EmitterPos = EmitterPosBuffer[DispatchThreadID.x];
     float3 O = normalize(EmitterPos - ListenerPos);
     float A = length(EmitterPos - CharacterPos);
