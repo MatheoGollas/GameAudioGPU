@@ -21,6 +21,10 @@
       "SupportedTargetPlatforms": [
         "Win64"
       ]
+    },
+    {
+      "Name": "Wwise",
+      "Enabled": true
     }
   ],
   "TargetPlatforms": [],
