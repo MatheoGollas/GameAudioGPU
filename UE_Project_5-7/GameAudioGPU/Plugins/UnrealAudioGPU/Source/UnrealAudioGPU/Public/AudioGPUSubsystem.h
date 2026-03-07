@@ -29,12 +29,16 @@ public:
 	bool UpdateEmitters();
 
 	UFUNCTION(BlueprintCallable)
+	bool SoundTracing();
+
+	UFUNCTION(BlueprintCallable)
 	void SetListener(USceneComponent* cmpnt);
 
 	UFUNCTION(BlueprintCallable)
 	void SetCharacter(USceneComponent* cmpnt);
 
-	FRHIGPUBufferReadback* Readback = nullptr;
+	FRHIGPUBufferReadback* TPE_Readback = nullptr;
+	FRHIGPUBufferReadback* ST_Readback = nullptr;
 
 private:
 	TWeakObjectPtr<USceneComponent> ListenerComponent;

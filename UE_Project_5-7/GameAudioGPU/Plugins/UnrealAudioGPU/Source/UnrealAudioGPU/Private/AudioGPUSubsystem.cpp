@@ -1,6 +1,3 @@
-
-
-
 #include "AudioGPUSubsystem.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "RenderingThread.h"
@@ -10,19 +7,23 @@
 #include "HAL/Platform.h"
 #include "RHIGPUReadback.h"
 #include "Shader_Processor.h"
+#include "SoundTracing.h"
 #include <RenderGraphFwd.h>
 
 void UAudioGPUSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	Readback = new FRHIGPUBufferReadback(TEXT("AudioGPUReadback"));
+	TPE_Readback = new FRHIGPUBufferReadback(TEXT("AudioGPUReadback_TPE"));
+	ST_Readback = new FRHIGPUBufferReadback(TEXT("AudioGPUReadback_ST"));
 }
 
 void UAudioGPUSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
-	delete Readback;
-	Readback = nullptr;
+	delete TPE_Readback;
+	TPE_Readback = nullptr;
+	delete ST_Readback;
+	ST_Readback = nullptr;
 }
 
 bool UAudioGPUSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -120,7 +121,7 @@ bool UAudioGPUSubsystem::UpdateEmitters()
 
 	TArray<TWeakObjectPtr<USceneComponent>> EmitterComponents = Emitters;
 
-	FRHIGPUBufferReadback* ReadbackCopy = Readback;
+	FRHIGPUBufferReadback* ReadbackCopy = TPE_Readback;
 
 	ENQUEUE_RENDER_COMMAND(AudioGPU)(
 		[ListenerPos, CharacterPos, EmitterComponents, FeatureLevel, ReadbackCopy](FRHICommandListImmediate& RHICmdList)
@@ -139,6 +140,60 @@ bool UAudioGPUSubsystem::UpdateEmitters()
 			CreateStructuredBuffer(GraphBuilder, TEXT("EmitterPosBuffer"), sizeof(FVector3f), EmitterPositions.Num(), EmitterPositions.GetData(), (uint64)EmitterPositions.Num() * sizeof(FVector3f));
 
 			FShader_ProcessorShaderInterface::AddPass_RenderThread(GraphBuilder, GlobalShaderMap, ListenerPos, CharacterPos, BufferRef, ReadbackCopy, EmitterComponents);
+
+			GraphBuilder.Execute();
+		}
+		);
+	return true;
+}
+
+bool UAudioGPUSubsystem::SoundTracing()
+{
+	UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Invalid World"));
+		return false;
+	}
+
+	if (Emitters.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No emitters to trace"));
+		return true;
+	}
+
+	if (!IsValid(ListenerComponent.Get()))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Invalid Listener Component"));
+		return false;
+	}
+	FVector3f ListenerPos = FVector3f(ListenerComponent.Get()->GetComponentLocation());
+
+	ERHIFeatureLevel::Type FeatureLevel = World->Scene->GetFeatureLevel();
+
+	TArray<TWeakObjectPtr<USceneComponent>> EmitterComponents = Emitters;
+
+	FRHIGPUBufferReadback* ReadbackCopy = ST_Readback;
+
+	ENQUEUE_RENDER_COMMAND(SoundTracingGPU)(
+		[ListenerPos, EmitterComponents, FeatureLevel, ReadbackCopy](FRHICommandListImmediate& RHICmdList)
+		{
+			FRDGBuilder GraphBuilder(RHICmdList);
+
+			FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(FeatureLevel);
+
+			TArray<FVector3f> EmitterPositions;
+			for (TWeakObjectPtr<USceneComponent> cmpnt : EmitterComponents)
+			{
+				EmitterPositions.Add(FVector3f(cmpnt.Get()->GetComponentLocation()));
+			}
+
+			FRDGBufferRef BufferRef =
+				CreateStructuredBuffer(GraphBuilder, TEXT("EmitterPosBuffer"), sizeof(FVector3f), EmitterPositions.Num(), EmitterPositions.GetData(), (uint64)EmitterPositions.Num() * sizeof(FVector3f));
+
+
+
+			FSoundTracingShaderInterface::AddPass_RenderThread(GraphBuilder, GlobalShaderMap, ListenerPos, BufferRef, ReadbackCopy, );
 
 			GraphBuilder.Execute();
 		}

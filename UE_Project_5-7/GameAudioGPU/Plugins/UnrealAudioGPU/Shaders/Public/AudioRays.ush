@@ -1,0 +1,9 @@
+struct SoundHitInfo // What data should return to the CPU at the end of the ray tracing pass (= ray payload)
+{
+    float2 lowpass_dist;
+};
+
+struct SoundAttributes // What attributes surfaces should ouput when hit by rays
+{
+    float soundAbsorption;
+};

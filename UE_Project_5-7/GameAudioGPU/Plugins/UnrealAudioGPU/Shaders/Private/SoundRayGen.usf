@@ -1,0 +1,125 @@
+#pragma once
+//#include "/Engine/Public/Platform.ush"
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/RayTracing/RayTracingCommon.ush"
+#include "/Engine/Private/SceneData.ush"
+
+#if COMPUTESHADER
+#include "/Engine/Private/RayTracing/RayTracingDeferredMaterials.ush"
+#include "/Engine/Private/RayTracing/TraceRayInline.ush"
+#endif
+
+#include "/Plugin/UnrealAudioGPU/Public/AudioRays.ush"
+/*#include "/Engine/Shared/RayTracingDefinitions.h"
+#include "/Engine/Shared/RayTracingBuiltInResources.h"
+*/
+
+//#ifndef VFX_TRACE_RAY_USH_INCLUDED
+//#define VFX_TRACE_RAY_USH_INCLUDED
+//#define NUM_THREADS 32
+
+RWStructuredBuffer<float2> soundTraceBuffer; // Output buffer for ray tracing results
+StructuredBuffer<float3> EmitterPosBuffer;
+float3 ListenerPos;
+uint NumEmitters;
+
+RaytracingAccelerationStructure SceneBVH;
+
+void SoundRayGenRGS(uint2 DispatchThreadID)
+{
+    uint RayIndex = DispatchThreadID.x;
+    uint RayYIndex = DispatchThreadID.y;
+
+    if(RayIndex >= NumEmitters)
+    {
+        return;
+    }
+
+    if(RayYIndex > 0)
+    {
+        return; // Only trace one ray per emitter for now, can be extended to multiple rays per emitter in the future
+    }
+
+    float2 dims = float2(DispatchRaysDimensions().xy);
+
+    float3 EmitterPos = EmitterPosBuffer[RayIndex];
+    float3 directVector = EmitterPos - ListenerPos;
+
+    SoundHitInfo payload;
+    payload.lowpass_dist = float2(0.0,length(directVector));
+
+    RayDesc ray;
+    ray.Origin = EmitterPos;
+    ray.Direction = normalize(ListenerPos - EmitterPos);
+    ray.TMin = 0.1f;
+    ray.TMax = length(ListenerPos - EmitterPos) + 0.1f;
+
+    uint RayFlags = RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
+
+    
+
+
+    #if COMPUTESHADER
+        FTraceRayInlineContext TraceRayInlineContext = CreateTraceRayInlineContext();
+
+        FTraceRayInlineResult TraceRayResult = TraceRayInline(
+            SceneBVH,   // AccelerationStructure
+            RayFlags,
+            RAY_TRACING_MASK_OPAQUE,
+            ray, 
+            TraceRayInlineContext
+        );
+
+        payload.lowpass_dist.x = TraceRayResult.HitT;
+
+#else
+        
+        TraceRay(SceneBVH, RayFlags, RAY_TRACING_MASK_OPAQUE, RAY_TRACING_SHADER_SLOT_MATERIAL, RAY_TRACING_NUM_SHADER_SLOTS, ray, payload);
+#endif
+    
+    soundTraceBuffer[RayIndex] = payload.lowpass_dist;
+}
+
+[shader("closesthit")]
+void SoundClosestHit(inout SoundHitInfo payload, SoundAttributes attributes)
+{
+    // Accumulate the total distance traveled by the ray
+    payload.lowpass_dist.x += attributes.soundAbsorption;
+    payload.lowpass_dist.y += length(attributes.soundAbsorption); // This is just an example, you can use any function of the attributes to calculate attenuation
+}
+
+[shader("miss")]
+void SoundMiss(inout SoundHitInfo payload)
+{
+    payload.lowpass_dist.x += 0.0f; // No hit, so the ray traveled its full length without absorption
+    payload.lowpass_dist.y += 0.0f; // No hit, so the ray traveled its full length without attenuation
+}
+
+#if COMPUTESHADER
+[numthreads(NUM_THREADS, 1, 1)]
+void SoundRayGenCS(uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+    SoundRayGen(DispatchThreadID.xy);
+}
+
+#else
+
+RAY_TRACING_ENTRY_RAYGEN(LaserTraceRGS)
+{
+    LaserTraceCommon(DispatchRaysIndex().xy);
+}
+    
+RAY_TRACING_ENTRY_CLOSEST_HIT(LaserTraceCHS,
+    FDefaultPayload, Payload,
+    FRayTracingIntersectionAttributes, Attributes)
+{
+    Payload.HitT = RayTCurrent();
+}
+
+RAY_TRACING_ENTRY_MISS(LaserTraceMS,
+    FDefaultPayload, Payload)
+{
+    Payload.HitT = -1;
+}
+
+#endif

@@ -44,7 +44,7 @@ class FShader_Processor : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FShader_Processor, "/UnrealAudioGPU_Shaders/UnrealAudioGPU.usf", "UpdateThirdPersonEmitters", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FShader_Processor, "/Plugin/UnrealAudioGPU/Private/UnrealAudioGPU.usf", "UpdateThirdPersonEmitters", SF_Compute);
 
 void FShader_ProcessorShaderInterface::AddPass_RenderThread(FRDGBuilder& GraphBuilder, FGlobalShaderMap* InShaderMap, FVector3f InListenerPos, FVector3f InCharacterPos, FRDGBufferRef BufferRef, FRHIGPUBufferReadback* Readback, TArray<TWeakObjectPtr<USceneComponent>> Components) //FRDGBufferRef
 {

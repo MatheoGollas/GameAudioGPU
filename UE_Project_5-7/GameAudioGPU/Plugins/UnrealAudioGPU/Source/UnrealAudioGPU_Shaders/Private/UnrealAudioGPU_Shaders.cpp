@@ -7,8 +7,8 @@
 
 void FUnrealAudioGPU_ShadersModule::StartupModule()
 {
-	FString PluginShaderDir = FPaths::Combine(IPluginManager::Get().FindPlugin(TEXT("UnrealAudioGPU"))->GetBaseDir(),TEXT("Shaders/Private"));
-	AddShaderSourceDirectoryMapping(TEXT("/UnrealAudioGPU_Shaders"), PluginShaderDir);
+	FString PluginShaderDir = FPaths::Combine(IPluginManager::Get().FindPlugin(TEXT("UnrealAudioGPU"))->GetBaseDir(),TEXT("Shaders"));
+	AddShaderSourceDirectoryMapping(TEXT("/Plugin/UnrealAudioGPU"), PluginShaderDir);
 }
 
 void FUnrealAudioGPU_ShadersModule::ShutdownModule()

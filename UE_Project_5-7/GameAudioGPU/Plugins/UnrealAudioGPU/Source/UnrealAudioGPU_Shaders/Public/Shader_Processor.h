@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 
@@ -10,7 +8,6 @@
 #include <RenderGraphBuilder.h>
 #include <Components/SceneComponent.h>
 #include <RHIGPUReadback.h>
-//#include "Shader_Processor.generated.h"
 
 class UNREALAUDIOGPU_SHADERS_API FShader_ProcessorShaderInterface
 {
