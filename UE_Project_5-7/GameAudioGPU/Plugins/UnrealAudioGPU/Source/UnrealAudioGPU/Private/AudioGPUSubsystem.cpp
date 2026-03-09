@@ -8,7 +8,12 @@
 #include "RHIGPUReadback.h"
 #include "Shader_Processor.h"
 #include "SoundTracing.h"
+#include "RayTracingDefinitions.h"
 #include <RenderGraphFwd.h>
+#include <Runtime/Renderer/Private/RayTracing/RayTracingScene.h>
+#include "SceneInterface.h"
+//#include "SceneRendering.h"
+//#include "GLTFAsset.h"
 
 void UAudioGPUSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -169,14 +174,18 @@ bool UAudioGPUSubsystem::SoundTracing()
 	}
 	FVector3f ListenerPos = FVector3f(ListenerComponent.Get()->GetComponentLocation());
 
-	ERHIFeatureLevel::Type FeatureLevel = World->Scene->GetFeatureLevel();
+	FSceneInterface* Scene = World->Scene;
+
+	ERHIFeatureLevel::Type FeatureLevel = Scene->GetFeatureLevel();
 
 	TArray<TWeakObjectPtr<USceneComponent>> EmitterComponents = Emitters;
 
 	FRHIGPUBufferReadback* ReadbackCopy = ST_Readback;
 
+	//ListenerComponent->GetWorld()->Scene->GetRenderScene()->RayTracingScene->GetLayerSRVChecked(ERayTracingSceneLayer::Base);
+
 	ENQUEUE_RENDER_COMMAND(SoundTracingGPU)(
-		[ListenerPos, EmitterComponents, FeatureLevel, ReadbackCopy](FRHICommandListImmediate& RHICmdList)
+		[ListenerPos, EmitterComponents, FeatureLevel, ReadbackCopy, Scene](FRHICommandListImmediate& RHICmdList)
 		{
 			FRDGBuilder GraphBuilder(RHICmdList);
 
@@ -191,13 +200,22 @@ bool UAudioGPUSubsystem::SoundTracing()
 			FRDGBufferRef BufferRef =
 				CreateStructuredBuffer(GraphBuilder, TEXT("EmitterPosBuffer"), sizeof(FVector3f), EmitterPositions.Num(), EmitterPositions.GetData(), (uint64)EmitterPositions.Num() * sizeof(FVector3f));
 
+			/*// Get the Ray Tracing Scene reference
+			FRDGBufferSRVRef RayTracingSceneSRV = nullptr;
+			if (Scene && Scene->GetRayTracingDynamicGeometryCollection())
+			{
+				FRayTracingScene& RayTracingScene = Scene->GetRayTracingScene();
+				if (RayTracingScene.IsCreated())
+				{
+					RayTracingSceneSRV = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(RayTracingScene.GetBufferChecked()));
+				}
+			}*/
+			//, ListenerPos, BufferRef, ReadbackCopy
+			//FSoundTracingShaderInterface::AddPass_RenderThread(GraphBuilder, GlobalShaderMap);
 
-
-			FSoundTracingShaderInterface::AddPass_RenderThread(GraphBuilder, GlobalShaderMap, ListenerPos, BufferRef, ReadbackCopy, );
-
-			GraphBuilder.Execute();
+			//GraphBuilder.Execute();
 		}
-		);
+	);
 	return true;
 }
 
@@ -219,4 +237,9 @@ void UAudioGPUSubsystem::SetCharacter(USceneComponent* cmpnt)
 		return;
 	}
 	CharacterComponent = cmpnt;
+}
+
+void UAudioGPUSubsystem::ReceiveSoundTracingData()
+{
+	UE_LOG(LogTemp, Log, TEXT("Received Sound Tracing Data"));
 }

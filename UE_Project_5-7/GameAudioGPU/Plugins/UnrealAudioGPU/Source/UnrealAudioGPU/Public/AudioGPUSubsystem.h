@@ -7,11 +7,12 @@
 #include "Subsystems/LocalPlayerSubsystem.h"
 #include <UObject/WeakObjectPtrTemplates.h>
 #include <Containers/Array.h>
+#include "SoundTracingInterface.h"
 #include <RenderGraphUtils.h>
 #include "AudioGPUSubsystem.generated.h"
 
 UCLASS()
-class UNREALAUDIOGPU_API UAudioGPUSubsystem : public ULocalPlayerSubsystem
+class UNREALAUDIOGPU_API UAudioGPUSubsystem : public ULocalPlayerSubsystem, public ISoundTracingReceiver
 {
 	GENERATED_BODY()
 public:
@@ -39,6 +40,8 @@ public:
 
 	FRHIGPUBufferReadback* TPE_Readback = nullptr;
 	FRHIGPUBufferReadback* ST_Readback = nullptr;
+
+	void ReceiveSoundTracingData() override;
 
 private:
 	TWeakObjectPtr<USceneComponent> ListenerComponent;

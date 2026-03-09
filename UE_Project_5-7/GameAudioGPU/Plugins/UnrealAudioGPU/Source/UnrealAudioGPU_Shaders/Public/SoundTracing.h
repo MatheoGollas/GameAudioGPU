@@ -13,6 +13,7 @@
 #include "Async/TaskGraphInterfaces.h"
 #include "RayTracingShaderBindingLayout.h"
 #include "RayTracingPayloadType.h"
+#include "SoundTracingInterface.h"
 #include "SceneViewExtension.h"
 //#include "PostProcess/PostProcessMaterial.h"
 //#include "DeferredShadingRenderer.h"
@@ -142,8 +143,45 @@ class FSoundTracingCS : public FGlobalShader
 	}
 };
 
-class UNREALAUDIOGPU_SHADERS_API FSoundTracingShaderInterface
+/*UINTERFACE(MinimalAPI)
+class USoundTracingReceiver : public UInterface
+{
+	GENERATED_BODY()
+};
+
+class UNREALAUDIOGPU_SHADERS_API ISoundTracingReceiver
+{
+	GENERATED_BODY()
+public:
+	virtual void ReceiveSoundTracingData() = 0;
+};*/
+
+class UNREALAUDIOGPU_SHADERS_API FSoundTracingShaderInterface : public FSceneViewExtensionBase
 {
 public:
-	static void AddPass_RenderThread(FRDGBuilder& GraphBuilder, FGlobalShaderMap* InShaderMap, FVector3f InListenerPos, FRDGBufferRef BufferRef, FRHIGPUBufferReadback* Readback, FRDGBufferSRV* RayTracingScene);
+	FSoundTracingShaderInterface(const FAutoRegister& AutoRegister, ISoundTracingReceiver* receiver);
+
+	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) override {};
+	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {};
+	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override {};
+
+	virtual void PostTLASBuild_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView) override;
+	
+	//static void RenderDiffuseIndirectLight_RenderThread(const FScene& Scene, const FViewInfo& View, FDGBuilder& GraphBuilder, FGlobalIlluminationPluginResources& Resources) {};
+	virtual void PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& InView, const FPostProcessingInputs& Inputs) override {};
+
+	virtual ESceneViewExtensionFlags GetFlags() const override { return ESceneViewExtensionFlags::SubscribesToPostTLASBuild; }
+
+
+
+private:
+	TArray<ISoundTracingReceiver*> Receivers;
+	FGlobalShaderMap* InShaderMap;
+	static FVector3f InListenerPos;
+	//FRDGBufferRef BufferRef;
+	TArray<FVector3f> EmitterPositions;
+	FRHIGPUBufferReadback* Readback;
+	bool RayTraceAvailable(const FSceneView& View);
+	void AddPass_RenderThread(FRDGBuilder& GraphBuilder, const FRayTracingScene& RayTracingScene, const FViewInfo& View);
+	
 };

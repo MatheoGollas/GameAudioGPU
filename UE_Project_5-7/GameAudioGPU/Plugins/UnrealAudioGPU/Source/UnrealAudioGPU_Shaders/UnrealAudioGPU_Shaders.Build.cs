@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.IO;
 using UnrealBuildTool;
 
 public class UnrealAudioGPU_Shaders : ModuleRules
@@ -8,30 +9,39 @@ public class UnrealAudioGPU_Shaders : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
+        var EngineDir = Path.GetFullPath(Target.RelativeEnginePath);
+
 		PublicIncludePaths.AddRange(
 			new string[] {
-				// ... add public include paths required here ...
-			}
-			);
-				
-		
-		PrivateIncludePaths.AddRange(
+                Path.Combine(EngineDir, "Source/Runtime/Renderer/Public")
+            });
+
+        PrivateIncludePaths.AddRange(
 			new string[] {
-				// ... add other private include paths required here ...
-			}
+                
+                Path.Combine(EngineDir, "Source/Runtime/Renderer/Private"),
+                Path.Combine(EngineDir, "Source/Runtime/Renderer/Internal"),
+                Path.Combine(GetModuleDirectory("Renderer"), "Internal"),
+            }
 			);
 			
 		
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core",
-				// ... add other public dependencies that you statically link with here ...
-			}
+                "Core",
+                "CoreUObject",
+                "Engine",
+                "RenderCore",
+                "Renderer",
+                "RHI",
+                "Projects"
+            }
 			);
-			
-		
-		PrivateDependencyModuleNames.AddRange(
+
+
+
+        PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"CoreUObject",
@@ -41,6 +51,7 @@ public class UnrealAudioGPU_Shaders : ModuleRules
 				"RHI",
 				"RenderCore",
 				"Projects",
+                "Renderer"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
