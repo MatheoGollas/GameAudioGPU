@@ -73,4 +73,38 @@ UE_Project_5-7/GameAudioGPU/Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 UE_Project_5-7/GameAudioGPU/DerivedDataCache/*
-UE_Project_5-7/GameAudioGPU/Plugins/VisualStudioTools
+UE_Project_5-7/GameAudioGPU/Plugins/VisualStudioTools/*
+
+Unity_URP_Project_6-3/GameAudioGPU/.vscode/*
+Unity_URP_Project_6-3/GameAudioGPU/Library/*
+Unity_URP_Project_6-3/GameAudioGPU/Logs/*
+Unity_URP_Project_6-3/GameAudioGPU/Temp/*
+Unity_URP_Project_6-3/GameAudioGPU/UserSettings/*
+Unity_URP_Project_6-3/GameAudioGPU/GameAudioGPU.slnx
+
+*.csproj
+
+# Crashlytics generated file
+crashlytics-build.properties
+
+# TestRunner generated files
+InitTestScene*.unity*
+
+# Addressables default ignores, before user customizations
+/ServerData
+/[Aa]ssets/StreamingAssets/aa*
+/[Aa]ssets/AddressableAssetsData/link.xml*
+/[Aa]ssets/Addressables_Temp*
+# By default, Addressables content builds will generate addressables_content_state.bin
+# files in platform-specific subfolders, for example:
+# /Assets/AddressableAssetsData/OSX/addressables_content_state.bin
+/[Aa]ssets/AddressableAssetsData/*/*.bin*
+
+# Visual Scripting auto-generated files
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db.meta
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers.meta
+
+# Auto-generated scenes by play mode tests
+/[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
