@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="ParameterPreset" id="{8b5077c4-1f0a-4f70-9ac0-1b23de88ddba}">
+		<property name="name">
+			<value>RaytracedOcclusion</value>
+		</property>
+		<relationship name="folder">
+			<destination>{4b35f8e4-f37f-42c4-857a-16addb297da9}</destination>
+		</relationship>
+		<relationship name="parameter">
+			<destination>{c457565c-9748-488b-8da4-11afee7cdeb1}</destination>
+		</relationship>
+	</object>
+	<object class="GameParameter" id="{c457565c-9748-488b-8da4-11afee7cdeb1}">
+		<property name="initialValue">
+			<value>0</value>
+		</property>
+	</object>
+</objects>

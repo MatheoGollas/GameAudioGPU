@@ -24,6 +24,7 @@ namespace UnityAudioGPU
         private List<SoundTracingEmitter> emitters = new(); //TODO: Optimize by seperating static and dynamic emitters
         private ComputeBuffer emitterPosBuffer;
         private static Transform listener;
+        private bool shouldUpdateBVH = false;
 
         private void Awake()
         {
@@ -35,16 +36,15 @@ namespace UnityAudioGPU
             Instance = this;
             OnInitialized?.Invoke();
             OnInitialized = null;
-        }
-
-        private void Start()
-        {
+            
             RayTracingResources rtResources = new();
             bool result = rtResources.LoadFromRenderPipelineResources();
             if(!result) return;
 
             RayTracingBackend backend = RayTracingContext.IsBackendSupported(RayTracingBackend.Hardware) ? RayTracingBackend.Hardware : RayTracingBackend.Compute;
             rtContext = new(backend, rtResources);
+            
+            Debug.Log("Using ray tracing backend: " + backend);
 
             AccelerationStructureOptions options = new()
             {
@@ -53,6 +53,12 @@ namespace UnityAudioGPU
             };
 
             rayTracingAccelStruct = rtContext.CreateAccelerationStructure(options);
+        }
+
+        private void Start()
+        {
+
+
 
             Renderer[] meshRenderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None);
             foreach (Renderer renderer in meshRenderers)
@@ -78,6 +84,8 @@ namespace UnityAudioGPU
             cb = new();
             GraphicsBuffer buildScratchBuffer = RayTracingHelper.CreateScratchBufferForBuild(rayTracingAccelStruct);
             rayTracingAccelStruct.Build(cb, buildScratchBuffer);
+            
+            shouldUpdateBVH = false;
 
             rayTracingShader.SetAccelerationStructure(cb, "_AccelStruct", rayTracingAccelStruct);
             Graphics.ExecuteCommandBuffer(cb);
@@ -104,6 +112,7 @@ namespace UnityAudioGPU
             
             if(emitters == null || listener == null) return;
 
+            if(shouldUpdateBVH) UpdateBVH();
             if(!SetupBuffer(out ComputeBuffer resultBuffer)) return;
             int numItems = emitters.Count;
             uint threadCount = (uint)Mathf.NextPowerOfTwo(numItems);
@@ -147,6 +156,15 @@ namespace UnityAudioGPU
                 resultBuffer.Dispose();
                 emitterPosBuffer.Dispose();
             });
+        }
+
+        private void UpdateBVH()
+        {
+            GraphicsBuffer buildScratchBuffer = RayTracingHelper.CreateScratchBufferForBuild(rayTracingAccelStruct);
+            rayTracingAccelStruct.Build(cb, buildScratchBuffer);
+            Graphics.ExecuteCommandBuffer(cb);
+            cb.Clear();
+            buildScratchBuffer?.Dispose();
         }
 
         private bool SetupBuffer(out ComputeBuffer resultBuffer)
@@ -210,6 +228,48 @@ namespace UnityAudioGPU
         public static void SetListener(Transform newListener)
         {
             listener = newListener;
+        }
+
+        public bool AddMeshToBVH(MeshFilter meshFilter, out int[] instanceID)
+        {
+            Mesh mesh = meshFilter.sharedMesh;
+            if (mesh == null)
+            {
+                instanceID = null;
+                return false;
+            }
+            int subMeshCount = mesh.subMeshCount;
+            instanceID = new int[subMeshCount];
+
+            for (int i = 0; i < subMeshCount; ++i)
+            {
+                MeshInstanceDesc instanceDesc = new(mesh, i)
+                {
+                    localToWorldMatrix = meshFilter.transform.localToWorldMatrix
+                };
+                instanceID[i] = rayTracingAccelStruct.AddInstance(instanceDesc);
+            }
+
+            shouldUpdateBVH = true;
+            return true;
+        }
+
+        public void RemoveMeshFromBVH(int[] instanceID)
+        {
+            foreach(int id in instanceID)
+            {
+                rayTracingAccelStruct.RemoveInstance(id);
+            }
+            shouldUpdateBVH = true;
+        }
+
+        public void UpdateMeshFromBVH(Matrix4x4 transform, int[] instanceID)
+        {
+            foreach(int id in instanceID)
+            {
+                rayTracingAccelStruct.UpdateInstanceTransform(id, transform);
+            }
+            shouldUpdateBVH = true;
         }
     }
 

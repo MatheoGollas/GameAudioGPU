@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="Bank" id="{b30a1d5c-e5af-4af8-ba8f-a14c2fd20653}">
+		<property name="name">
+			<value>BasicRaytracing</value>
+		</property>
+		<relationship name="folder">
+			<destination>{f27b46fd-8603-4434-a707-71212562f31f}</destination>
+		</relationship>
+	</object>
+</objects>

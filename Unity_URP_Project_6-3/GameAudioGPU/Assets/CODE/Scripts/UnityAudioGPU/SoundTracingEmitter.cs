@@ -1,46 +1,34 @@
 using UnityEngine;
+using FMODUnity;
+using System;
+using System.Collections.Generic;
 
 namespace UnityAudioGPU
 {
-    [RequireComponent(typeof(AudioSource))]
-    public class SoundTracingEmitter : MonoBehaviour
+    [RequireComponent(typeof(StudioEventEmitter))]
+    public abstract class SoundTracingEmitter : MonoBehaviour
     {
-        private void OnEnable()
+        protected StudioEventEmitter emitter;
+        [SerializeField][Tooltip("0 means no filtering, 1 means full bandwidth filtering")][Range(0f,1f)] protected float occlusionLowpassFreqLinear = 0.75f;
+        
+        protected virtual void Awake()
         {
-            //TODO: When FMOD is implemented, subscribe to the event start and stop
-            //For now, we can just register on enable and unregister on disable
-            if(SoundTracingContext.Instance == null)
-            {
-                SoundTracingContext.OnInitialized += OnAudioStart;
-            }
-            else
-            {
-                OnAudioStart();
-            }
+            if(!emitter) emitter = GetComponent<StudioEventEmitter>();
         }
 
-        private void OnDisable()
-        {
-            if(SoundTracingContext.Instance != null)
-            {
-                OnAudioStop();
-            }
-        }
-
-
-        private void OnAudioStart()
+        protected virtual void OnAudioStarted()
         {
             SoundTracingContext.Instance.RegisterEmitter(this);
         }
 
-        private void OnAudioStop()
+        protected virtual void OnAudioStopped()
         {
             SoundTracingContext.Instance.UnregisterEmitter(this);
         }
 
         public virtual void OnSoundTraceResult(SoundTraceResult result)
         {
-            Debug.Log("Got my data!: " + result.didHit);
+            emitter.SetParameter("RaytracedOcclusion", result.didHit ? occlusionLowpassFreqLinear : 0f, false);
         }
     }
 }

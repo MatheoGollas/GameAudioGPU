@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="AudioFile" id="{614837f1-03a9-4cda-b4e6-324d21d524c4}">
+		<property name="assetPath">
+			<value>Refrigerator Refrigerator Motor On R.wav</value>
+		</property>
+		<property name="isStreaming">
+			<value>true</value>
+		</property>
+		<property name="frequencyInKHz">
+			<value>48</value>
+		</property>
+		<property name="channelCount">
+			<value>2</value>
+		</property>
+		<property name="length">
+			<value>19.813104166666665</value>
+		</property>
+		<relationship name="masterAssetFolder">
+			<destination>{abf48a58-509b-4887-9102-eee178a1a8ef}</destination>
+		</relationship>
+	</object>
+</objects>

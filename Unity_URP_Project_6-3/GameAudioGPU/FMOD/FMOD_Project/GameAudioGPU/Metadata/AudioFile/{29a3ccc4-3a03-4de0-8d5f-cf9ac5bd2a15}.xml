@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="AudioFile" id="{29a3ccc4-3a03-4de0-8d5f-cf9ac5bd2a15}">
+		<property name="assetPath">
+			<value>VEHTruck_VW CADDY-DRIVE Static 1000 rpm ENGINE A_B00M_CSV.wav</value>
+		</property>
+		<property name="isStreaming">
+			<value>true</value>
+		</property>
+		<property name="frequencyInKHz">
+			<value>96</value>
+		</property>
+		<property name="channelCount">
+			<value>1</value>
+		</property>
+		<property name="length">
+			<value>20</value>
+		</property>
+		<relationship name="masterAssetFolder">
+			<destination>{abf48a58-509b-4887-9102-eee178a1a8ef}</destination>
+		</relationship>
+	</object>
+</objects>
