@@ -17,8 +17,9 @@ public class UnrealAudioGPU : ModuleRules
 		
 		PrivateIncludePaths.AddRange(
 			new string[] {
-				// ... add other private include paths required here ...
-			}
+                Path.Combine(EngineDir, "Source/Runtime/Renderer/Private"),
+                Path.Combine(EngineDir, "Source/Runtime/Renderer/Internal")
+            }
 			);
 			
 		
@@ -26,6 +27,8 @@ public class UnrealAudioGPU : ModuleRules
 			new string[]
 			{
 				"Core",
+				"RHI",
+                "RenderCore",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -38,9 +41,9 @@ public class UnrealAudioGPU : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
-				"RHI",
+				"Projects",
 				"RenderCore",
-				"UnrealAudioGPU_Shaders",
+				"RHI",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
