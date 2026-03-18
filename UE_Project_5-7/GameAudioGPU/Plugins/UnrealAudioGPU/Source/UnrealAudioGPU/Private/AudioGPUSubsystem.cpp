@@ -3,7 +3,8 @@
 
 #include "RHIGPUReadback.h"
 #include "TPE_ShaderProcessor.h"
-//#include "RenderingThread.h"
+#include "ST_ShaderProcessor.h"
+#include "SceneViewExtension.h"
 
 
 void UAudioGPUSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -11,6 +12,8 @@ void UAudioGPUSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	TPE_Readback = new FRHIGPUBufferReadback(TEXT("AudioGPUReadback_TPE"));
 	ST_Readback = new FRHIGPUBufferReadback(TEXT("AudioGPUReadback_ST"));
+
+	ST_ViewExtension = FSceneViewExtensions::NewExtension<FSoudTracingViewExtension>(this);
 }
 
 void UAudioGPUSubsystem::Deinitialize()
@@ -20,6 +23,21 @@ void UAudioGPUSubsystem::Deinitialize()
 	TPE_Readback = nullptr;
 	delete ST_Readback;
 	ST_Readback = nullptr;
+
+	{
+		ST_ViewExtension->IsActiveThisFrameFunctions.Empty();
+		FSceneViewExtensionIsActiveFunctor IsActiveFunctor;
+
+		IsActiveFunctor.IsActiveFunction = [](const ISceneViewExtension* SceneViewExtension, const FSceneViewExtensionContext& Context)
+			{
+				return TOptional<bool>(false);
+			};
+
+		ST_ViewExtension->IsActiveThisFrameFunctions.Add(IsActiveFunctor);
+	}
+
+	ST_ViewExtension.Reset();
+	ST_ViewExtension = nullptr;
 }
 
 bool UAudioGPUSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -183,7 +201,7 @@ bool UAudioGPUSubsystem::SoundTraceUpdate()
 		UE_LOG(LogTemp, Error, TEXT("Invalid Listener Component"));
 		return false;
 	}
-	FVector3f ListenerPos = FVector3f(ListenerComponent.Get()->GetComponentLocation());
+	/*FVector3f ListenerPos = FVector3f(ListenerComponent.Get()->GetComponentLocation());
 
 	FSceneInterface* Scene = World->Scene;
 
@@ -191,7 +209,7 @@ bool UAudioGPUSubsystem::SoundTraceUpdate()
 
 	TArray<TWeakObjectPtr<USceneComponent>> EmitterComponents = Emitters;
 
-	FRHIGPUBufferReadback* ReadbackCopy = ST_Readback;
+	FRHIGPUBufferReadback* ReadbackCopy = ST_Readback;*/
 
 	return true;
 }

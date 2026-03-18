@@ -1,0 +1,90 @@
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/RayTracing/RayTracingCommon.ush"
+//#include "/Engine/Private/SceneData.ush"
+#include "/Plugin/UnrealAudioGPU/Public/AudioRays.ush"
+
+
+RaytracingAccelerationStructure SceneBVH;
+float3 CharacterPos;
+uint NumEmitters;
+
+StructuredBuffer<float3> EmitterPosBuffer;
+RWStructuredBuffer<float2> soundTraceBuffer; // Output buffer for ray tracing results
+
+RAY_TRACING_ENTRY_RAYGEN(SoundTracingRGS)
+{
+    if(DispatchRaysIndex().x >= NumEmitters) return;
+    
+    float3 origin = EmitterPosBuffer[DispatchRaysIndex().x];
+    float3 rayVector = CharacterPos - origin;
+
+    RayDesc Ray;
+    Ray.Origin = origin;
+    Ray.Direction = normalize(rayVector);
+    Ray.TMin = 0.1f;
+    Ray.TMax = length(rayVector);
+ 
+    // consider opaque geometries and front facing triangles only
+    uint RayFlags = RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
+ 
+    // use material closest hit pay load
+    FMinimalPayload Payload = (FMinimalPayload) 0;
+	
+    TraceRay(
+        SceneBVH,   // AccelerationStructure
+        RayFlags,
+        RAY_TRACING_MASK_OPAQUE,          // InstanceInclusionMask, defined by UE4
+        RAY_TRACING_SHADER_SLOT_MATERIAL, // RayContributionToHitGroupIndex, defined by UE4
+        RAY_TRACING_NUM_SHADER_SLOTS,     // MultiplierForGeometryContributionToShaderIndex, defined by UE4
+        0,      // MissShaderIndex
+        Ray,    // RayDesc
+        Payload // Payload
+    );
+ 
+    if (Payload.IsHit())
+    {
+        // Do something
+    }
+    else
+    {
+        // Do something else
+    }
+}
+
+
+[shader("miss")]
+void SoundTracingMS(inout FMinimalPayload data)
+{
+    data.SetMiss();
+}
+ 
+[shader("closesthit")]
+void SoundTracingCHS(inout FMinimalPayload data, BuiltInTriangleIntersectionAttributes attribs)
+{
+    data.HitT = 1.0f;
+}
+
+
+//#include "/Engine/Public/Platform.ush"
+
+/*#include "/Engine/Shared/RayTracingDefinitions.h"
+#include "/Engine/Shared/RayTracingBuiltInResources.h"
+*/
+
+//#ifndef VFX_TRACE_RAY_USH_INCLUDED
+//#define VFX_TRACE_RAY_USH_INCLUDED
+
+    /*
+RAY_TRACING_ENTRY_CLOSEST_HIT(LaserTraceCHS,
+    FDefaultPayload, Payload,
+    FRayTracingIntersectionAttributes, Attributes)
+{
+    Payload.HitT = RayTCurrent();
+}
+
+RAY_TRACING_ENTRY_MISS(LaserTraceMS,
+    FDefaultPayload, Payload)
+{
+    Payload.HitT = -1;
+}
+*/

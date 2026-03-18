@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/LocalPlayerSubsystem.h"
 #include "Components/SceneComponent.h"
+//#include "ST_ShaderProcessor.h"
 #include <RenderGraphUtils.h>
 
 #include "AudioGPUSubsystem.generated.h"
@@ -36,9 +37,11 @@ public:
 
 	FRHIGPUBufferReadback* TPE_Readback = nullptr;
 	FRHIGPUBufferReadback* ST_Readback = nullptr;
-	
-private:
 	TWeakObjectPtr<USceneComponent> ListenerComponent;
 	TWeakObjectPtr<USceneComponent> CharacterComponent;
 	TArray<TWeakObjectPtr<USceneComponent>> Emitters;
+	
+private:
+
+	TSharedPtr<class FSoudTracingViewExtension, ESPMode::ThreadSafe> ST_ViewExtension;
 };

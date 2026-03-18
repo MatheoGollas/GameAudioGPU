@@ -1,13 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
+using System.IO;
 
 public class UnrealAudioGPU : ModuleRules
 {
 	public UnrealAudioGPU(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		
+
+		var EngineDir = Path.GetFullPath(Target.RelativeEnginePath);
+
 		PublicIncludePaths.AddRange(
 			new string[] {
 				// ... add public include paths required here ...
@@ -44,6 +47,7 @@ public class UnrealAudioGPU : ModuleRules
 				"Projects",
 				"RenderCore",
 				"RHI",
+				"Renderer"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
