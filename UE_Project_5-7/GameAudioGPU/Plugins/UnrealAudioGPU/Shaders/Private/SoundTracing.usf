@@ -1,6 +1,7 @@
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/RayTracing/RayTracingCommon.ush"
-//#include "/Engine/Private/SceneData.ush"
+#include "/Engine/Private/Visualization.ush"
+
 #include "/Plugin/UnrealAudioGPU/Public/AudioRays.ush"
 
 
@@ -9,14 +10,21 @@ float3 CharacterPos;
 uint NumEmitters;
 
 StructuredBuffer<float3> EmitterPosBuffer;
-RWStructuredBuffer<float2> soundTraceBuffer; // Output buffer for ray tracing results
+//RWStructuredBuffer<float2> soundTraceBuffer; // Output buffer for ray tracing results
 
 RAY_TRACING_ENTRY_RAYGEN(SoundTracingRGS)
 {
     if(DispatchRaysIndex().x >= NumEmitters) return;
     
     float3 origin = EmitterPosBuffer[DispatchRaysIndex().x];
-    float3 rayVector = CharacterPos - origin;
+    float3 target = CharacterPos;
+
+    const float3 TLASOffset = View.TLASPreViewTranslationHigh + View.TLASPreViewTranslationLow;
+
+    origin += TLASOffset;
+    target += TLASOffset;
+
+    float3 rayVector = target - origin;
 
     RayDesc Ray;
     Ray.Origin = origin;
@@ -51,17 +59,19 @@ RAY_TRACING_ENTRY_RAYGEN(SoundTracingRGS)
     }
 }
 
-
-[shader("miss")]
-void SoundTracingMS(inout FMinimalPayload data)
+//void SoundTracingMS(inout FMinimalPayload data)
+RAY_TRACING_ENTRY_MISS(SoundTracingMS,
+    FDefaultPayload, Payload)
 {
-    data.SetMiss();
+    Payload.SetMiss();
 }
- 
+/* 
 [shader("closesthit")]
 void SoundTracingCHS(inout FMinimalPayload data, BuiltInTriangleIntersectionAttributes attribs)
+*/
+RAY_TRACING_ENTRY_CLOSEST_HIT(SoundTracingCHS, FMinimalPayload, Payload, FRayTracingIntersectionAttributes, Attributes)
 {
-    data.HitT = 1.0f;
+    Payload.HitT = 1.0f;
 }
 
 
@@ -74,7 +84,8 @@ void SoundTracingCHS(inout FMinimalPayload data, BuiltInTriangleIntersectionAttr
 //#ifndef VFX_TRACE_RAY_USH_INCLUDED
 //#define VFX_TRACE_RAY_USH_INCLUDED
 
-    /*
+/*
+    
 RAY_TRACING_ENTRY_CLOSEST_HIT(LaserTraceCHS,
     FDefaultPayload, Payload,
     FRayTracingIntersectionAttributes, Attributes)

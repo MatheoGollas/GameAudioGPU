@@ -76,22 +76,13 @@ void FSoudTracingViewExtension::AddPass_RenderThread(FRDGBuilder& GraphBuilder, 
 {
 	const int32 NumObjects = Subsystem->Emitters.Num();
 	if (NumObjects < 1) return;
-
+	
 	TArray<FVector3f> EmitterPositions;
 	for (TWeakObjectPtr<USceneComponent> cmpnt : Subsystem->Emitters)
 	{
 		EmitterPositions.Add(FVector3f(cmpnt.Get()->GetComponentLocation()));
 	}
 
-	/*FTextureRHIRef RTResource = RTSubsystem->ValidateAndGetRenderTargetResource();
-	if (!RTResource) return;
-
-	FRDGTextureRef OutputTexture = RegisterExternalTexture(GraphBuilder, RTResource, TEXT("RT_Texture"));
-
-	const uint32 OutputWidth = OutputTexture->Desc.Extent.X;
-	const uint32 OutputHeight = OutputTexture->Desc.Extent.Y;
-	*/
-	
 	FRDGBufferRef EmitterPositionBuffer = GraphBuilder.CreateBuffer(
 		FRDGBufferDesc::CreateStructuredDesc(
 			sizeof(FVector3f),
@@ -136,15 +127,13 @@ void FSoudTracingViewExtension::AddPass_RenderThread(FRDGBuilder& GraphBuilder, 
 	Params->NumEmitters = NumObjects;
 	Params->EmitterPosBuffer = PosBufferSRV;
 	Params->SceneBVH = RayTracingScene.GetLayerView(ERayTracingSceneLayer::Base, View.GetRayTracingSceneViewHandle());
+	Params->NaniteRayTracing = Nanite::GetPublicGlobalRayTracingUniformBuffer();
+	Params->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+	Params->ViewUniformBuffer = View.ViewUniformBuffer;
 	/*
-	Parameters->TLAS = RayTracingScene.GetLayerView(ERayTracingSceneLayer::Base, View.GetRayTracingSceneViewHandle());
-	Parameters->NaniteRayTracing = Nanite::GetPublicGlobalRayTracingUniformBuffer();
 	Parameters->Output = GraphBuilder.CreateUAV(OutputTexture);
-	Parameters->ObjectLocations = LocationBufferSRV;
-	Parameters->ViewUniformBuffer = View.ViewUniformBuffer;
-	Parameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 	*/
-
+	
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("Sound Tracing RGS "),
 		Params,
@@ -155,11 +144,11 @@ void FSoudTracingViewExtension::AddPass_RenderThread(FRDGBuilder& GraphBuilder, 
 			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenShader, *Params);
 
-			/*FRHIUniformBuffer* SceneUniformBuffer = Params->Scene->GetRHI();
-			FRHIUniformBuffer* NaniteRayTracingUniformBuffer = Parameters->NaniteRayTracing->GetRHI();
+			FRHIUniformBuffer* SceneUniformBuffer = Params->Scene->GetRHI();
+			FRHIUniformBuffer* NaniteRayTracingUniformBuffer = Params->NaniteRayTracing->GetRHI();
 
 			TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope =
-				RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, NaniteRayTracingUniformBuffer, RHICmdList);*/
+				RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, NaniteRayTracingUniformBuffer, RHICmdList);
 
 			FRayTracingPipelineState* Pipeline = View.MaterialRayTracingData.PipelineState;
 			FShaderBindingTableRHIRef SBT = View.MaterialRayTracingData.ShaderBindingTable;

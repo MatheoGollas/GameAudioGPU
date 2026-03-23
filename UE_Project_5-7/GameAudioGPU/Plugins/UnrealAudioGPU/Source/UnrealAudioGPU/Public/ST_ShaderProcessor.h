@@ -11,7 +11,6 @@
 #include "SceneViewExtension.h"
 #include <Runtime/Renderer/Private/RayTracing/RayTracingScene.h>
 #include <Runtime/Renderer/Private/DeferredShadingRenderer.h>
-//#include "DeferredShadingRenderer" -> not working cuz this is a private engine header
 
 class FSoundTracingRGS : public FGlobalShader
 {
@@ -23,6 +22,9 @@ class FSoundTracingRGS : public FGlobalShader
 		SHADER_PARAMETER(uint32, NumEmitters)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FVector>, EmitterPosBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, SceneBVH)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRayTracingUniformParameters, NaniteRayTracing)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		//TODO: add more parameters as the shader evolves
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -33,7 +35,7 @@ class FSoundTracingRGS : public FGlobalShader
 
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
-		return ERayTracingPayloadType::Default;
+		return ERayTracingPayloadType::Minimal;
 	}
 
 	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
@@ -53,7 +55,7 @@ class FSoundTracingCHS : public FGlobalShader
 
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
-		return ERayTracingPayloadType::Default;
+		return ERayTracingPayloadType::Minimal;
 	}
 
 	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
@@ -76,7 +78,7 @@ class FSoundTracingMS : public FGlobalShader
 
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
-		return ERayTracingPayloadType::Default;
+		return ERayTracingPayloadType::Minimal;
 	}
 
 	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
