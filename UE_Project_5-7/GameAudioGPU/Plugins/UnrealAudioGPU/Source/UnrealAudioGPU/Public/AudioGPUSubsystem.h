@@ -18,16 +18,19 @@ public:
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	
 	UFUNCTION(BlueprintCallable)
-	bool AddEmitterToBuffer(USceneComponent* InEmitter);
+	bool AddEmitterToBuffer(TScriptInterface<IAudioEmitterGPU> InEmitter);
 
 	UFUNCTION(BlueprintCallable)
-	bool RemoveEmitterFromBuffer(USceneComponent* InEmitter);
+	bool RemoveEmitterFromBuffer(TScriptInterface<IAudioEmitterGPU> InEmitter);
 
 	UFUNCTION(BlueprintCallable)
 	bool UpdateTPAEmitters();
 
 	UFUNCTION(BlueprintCallable)
-	bool SoundTraceUpdate();
+	void StartSoundTracing();
+
+	UFUNCTION(BlueprintCallable)
+	void StopSoundTracing();
 
 	UFUNCTION(BlueprintCallable)
 	void SetListener(USceneComponent* cmpnt);
@@ -39,9 +42,36 @@ public:
 	FRHIGPUBufferReadback* ST_Readback = nullptr;
 	TWeakObjectPtr<USceneComponent> ListenerComponent;
 	TWeakObjectPtr<USceneComponent> CharacterComponent;
-	TArray<TWeakObjectPtr<USceneComponent>> Emitters;
+	TArray<TScriptInterface<IAudioEmitterGPU>> Emitters;
 	
 private:
 
 	TSharedPtr<class FSoudTracingViewExtension, ESPMode::ThreadSafe> ST_ViewExtension;
+};
+
+USTRUCT(BlueprintType)
+struct FSoundTraceResult
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FVector4f WPos_DidHit;
+};
+
+
+UINTERFACE(MinimalAPI, Blueprintable)
+class UAudioEmitterGPU : public UInterface
+{
+	GENERATED_BODY()
+};
+
+class IAudioEmitterGPU
+{
+	GENERATED_BODY()
+public:
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	void ReceiveSoundTraceData(const FSoundTraceResult& Data);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	const USceneComponent* GetComponent();
 };

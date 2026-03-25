@@ -54,9 +54,8 @@ void FSoudTracingViewExtension::PostTLASBuild_RenderThread(FRDGBuilder& GraphBui
 {
 	FScene* Scene = InView.Family->GetSceneRenderer()->GetScene();
 	if (!Scene) return;
-	//Scene->RayTracingScene->GetLayerSRVChecked(ERayTracingSceneLayer::Base);
-	const FRayTracingScene& RayTracingScene = Scene->RayTracingScene/*.GetLayerView(ERayTracingSceneLayer::Base)*/;
-	//RayTracingScene.GetLayerView(ERayTracingSceneLayer::Base);
+
+	const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
 	if (!RayTracingScene.IsCreated()) return;
 
 	if (!RayTraceAvailable(InView)) return;
@@ -74,13 +73,18 @@ void FSoudTracingViewExtension::PostTLASBuild_RenderThread(FRDGBuilder& GraphBui
 
 void FSoudTracingViewExtension::AddPass_RenderThread(FRDGBuilder& GraphBuilder, const FRayTracingScene& RayTracingScene, const FViewInfo& View)
 {
-	const int32 NumObjects = Subsystem->Emitters.Num();
+	TArray<TScriptInterface<IAudioEmitterGPU>> EmittersCopy = Subsystem->Emitters;
+	const int32 NumObjects = EmittersCopy.Num();
+
 	if (NumObjects < 1) return;
 	
 	TArray<FVector3f> EmitterPositions;
-	for (TWeakObjectPtr<USceneComponent> cmpnt : Subsystem->Emitters)
+	TArray<FVector4f> OutputData;
+
+	for (TScriptInterface<IAudioEmitterGPU> emitter : EmittersCopy)
 	{
-		EmitterPositions.Add(FVector3f(cmpnt.Get()->GetComponentLocation()));
+		EmitterPositions.Add(FVector3f(emitter.GetInterface()->Execute_GetComponent(emitter.GetObject())->GetComponentLocation()));
+		OutputData.Add(FVector4f::One());
 	}
 
 	FRDGBufferRef EmitterPositionBuffer = GraphBuilder.CreateBuffer(
@@ -95,8 +99,20 @@ void FSoudTracingViewExtension::AddPass_RenderThread(FRDGBuilder& GraphBuilder, 
 		sizeof(FVector3f) * NumObjects,
 		ERDGInitialDataFlags::None);
 
-	// Create SRV for shader binding
-	FRDGBufferSRVRef PosBufferSRV = GraphBuilder.CreateSRV(EmitterPositionBuffer);
+	FRDGBufferRef OutputBuffer = GraphBuilder.CreateBuffer(
+		FRDGBufferDesc::CreateStructuredDesc(
+			sizeof(FVector4f),
+			NumObjects),
+		TEXT("OutputBuffer"));
+
+	GraphBuilder.QueueBufferUpload(
+		OutputBuffer,
+		OutputData.GetData(),
+		sizeof(FVector4f) * NumObjects,
+		ERDGInitialDataFlags::None);
+
+	FRDGBufferSRVRef PosBufferSRV = GraphBuilder.CreateSRV(EmitterPositionBuffer); // SRV -> read only in shader
+	FRDGBufferUAVRef OutputBufferUAV = GraphBuilder.CreateUAV(OutputBuffer); // UAV -> read/write in shader (only write in our context)
 
 	TShaderRef<FSoundTracingRGS> RayGenShader = View.ShaderMap->GetShader<FSoundTracingRGS>();
 	TShaderRef<FSoundTracingCHS> ClosestHitShader = View.ShaderMap->GetShader<FSoundTracingCHS>();
@@ -119,20 +135,17 @@ void FSoudTracingViewExtension::AddPass_RenderThread(FRDGBuilder& GraphBuilder, 
 	FRHIRayTracingShader* MissTable[] = { MissShader.GetRayTracingShader() };
 	Initializer.SetMissShaderTable(MissTable);
 
-	//FRDGBufferUAVRef BufferUAVref = GraphBuilder.CreateUAV(bufferRef); // Write buffer for rays TODO: setup correctly
 
 	FSoundTracingRGS::FParameters* Params = GraphBuilder.AllocParameters<FSoundTracingRGS::FParameters>();
 
 	Params->CharacterPos = FVector3f(Subsystem->CharacterComponent.Get()->GetComponentLocation());
 	Params->NumEmitters = NumObjects;
 	Params->EmitterPosBuffer = PosBufferSRV;
+	Params->OutputBuffer = OutputBufferUAV;
 	Params->SceneBVH = RayTracingScene.GetLayerView(ERayTracingSceneLayer::Base, View.GetRayTracingSceneViewHandle());
 	Params->NaniteRayTracing = Nanite::GetPublicGlobalRayTracingUniformBuffer();
 	Params->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 	Params->ViewUniformBuffer = View.ViewUniformBuffer;
-	/*
-	Parameters->Output = GraphBuilder.CreateUAV(OutputTexture);
-	*/
 	
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("Sound Tracing RGS "),
@@ -162,4 +175,47 @@ void FSoudTracingViewExtension::AddPass_RenderThread(FRDGBuilder& GraphBuilder, 
 				1);
 		});
 	
+	{
+		const uint32 NumOfBytes = sizeof(FVector4f) * NumObjects;
+
+		FRHIGPUBufferReadback* readback = Subsystem->ST_Readback;
+		if (readback == nullptr) return;
+
+		AddEnqueueCopyPass(GraphBuilder, readback, OutputBuffer, NumOfBytes);
+
+		if (readback->IsReady())
+		{
+			FVector4f* buffer = (FVector4f*)readback->Lock(NumOfBytes);
+
+			const int maxIndex = (int)NumObjects;
+
+			TArray<TPair<TScriptInterface<IAudioEmitterGPU>, FVector4f>> PendingUpdates;
+
+			PendingUpdates.Reserve(maxIndex);
+
+			for (int i = 0; i < maxIndex; i++)
+			{
+				FSoundTraceResult result = FSoundTraceResult(buffer[i]);
+				PendingUpdates.Emplace(EmittersCopy[i], FVector4f(buffer[i]));
+			}
+			
+			readback->Unlock();
+
+			AsyncTask(ENamedThreads::GameThread, [PendingUpdates = MoveTemp(PendingUpdates)]()
+				{
+					for (const auto& Pair : PendingUpdates)
+					{
+						const TScriptInterface<IAudioEmitterGPU> emitter = Pair.Key;
+
+						UObject* obj = emitter.GetObject();
+						if (!IsValid(obj)) continue;
+
+						FSoundTraceResult result;
+						result.WPos_DidHit = Pair.Value;
+
+						emitter.GetInterface()->Execute_ReceiveSoundTraceData(emitter.GetObject(), result);
+					}
+				});
+		}
+	};
 }

@@ -11,9 +11,6 @@ void UAudioGPUSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	TPE_Readback = new FRHIGPUBufferReadback(TEXT("AudioGPUReadback_TPE"));
-	ST_Readback = new FRHIGPUBufferReadback(TEXT("AudioGPUReadback_ST"));
-
-	ST_ViewExtension = FSceneViewExtensions::NewExtension<FSoudTracingViewExtension>(this);
 }
 
 void UAudioGPUSubsystem::Deinitialize()
@@ -21,23 +18,7 @@ void UAudioGPUSubsystem::Deinitialize()
 	Super::Deinitialize();
 	delete TPE_Readback;
 	TPE_Readback = nullptr;
-	delete ST_Readback;
-	ST_Readback = nullptr;
-
-	{
-		ST_ViewExtension->IsActiveThisFrameFunctions.Empty();
-		FSceneViewExtensionIsActiveFunctor IsActiveFunctor;
-
-		IsActiveFunctor.IsActiveFunction = [](const ISceneViewExtension* SceneViewExtension, const FSceneViewExtensionContext& Context)
-			{
-				return TOptional<bool>(false);
-			};
-
-		ST_ViewExtension->IsActiveThisFrameFunctions.Add(IsActiveFunctor);
-	}
-
-	ST_ViewExtension.Reset();
-	ST_ViewExtension = nullptr;
+	StopSoundTracing();
 }
 
 bool UAudioGPUSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -45,9 +26,9 @@ bool UAudioGPUSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 	return Super::ShouldCreateSubsystem(Outer);
 }
 
-bool UAudioGPUSubsystem::AddEmitterToBuffer(USceneComponent* InEmitter)
+bool UAudioGPUSubsystem::AddEmitterToBuffer(TScriptInterface<IAudioEmitterGPU> InEmitter)
 {
-	if (!IsValid(InEmitter))
+	if (InEmitter != nullptr)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Invalid Emitter Component"));
 		return false;
@@ -64,9 +45,9 @@ bool UAudioGPUSubsystem::AddEmitterToBuffer(USceneComponent* InEmitter)
 	return true;
 }
 
-bool UAudioGPUSubsystem::RemoveEmitterFromBuffer(USceneComponent* InEmitter)
+bool UAudioGPUSubsystem::RemoveEmitterFromBuffer(TScriptInterface<IAudioEmitterGPU> InEmitter)
 {
-	if (!IsValid(InEmitter))
+	if (InEmitter == nullptr)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Invalid Emitter Component"));
 		return false;
@@ -153,7 +134,7 @@ bool UAudioGPUSubsystem::UpdateTPAEmitters()
 
 	ERHIFeatureLevel::Type FeatureLevel = World->Scene->GetFeatureLevel();
 
-	TArray<TWeakObjectPtr<USceneComponent>> EmitterComponents = Emitters;
+	TArray<TScriptInterface<IAudioEmitterGPU>> EmitterComponents = Emitters;
 
 	FRHIGPUBufferReadback* ReadbackCopy = TPE_Readback;
 
@@ -165,9 +146,9 @@ bool UAudioGPUSubsystem::UpdateTPAEmitters()
 			FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(FeatureLevel);
 
 			TArray<FVector3f> EmitterPositions;
-			for (TWeakObjectPtr<USceneComponent> cmpnt : EmitterComponents)
+			for (TScriptInterface<IAudioEmitterGPU> emitter : EmitterComponents)
 			{
-				EmitterPositions.Add(FVector3f(cmpnt.Get()->GetComponentLocation()));
+				EmitterPositions.Add(FVector3f(emitter.GetInterface()->Execute_GetComponent(emitter.GetObject())->GetComponentLocation()));
 			}
 
 			FRDGBufferRef BufferRef =
@@ -181,35 +162,43 @@ bool UAudioGPUSubsystem::UpdateTPAEmitters()
 	return true;
 }
 
-bool UAudioGPUSubsystem::SoundTraceUpdate()
+void UAudioGPUSubsystem::StartSoundTracing()
 {
-	UWorld* World = GetWorld();
-	if (!IsValid(World))
-	{
-		UE_LOG(LogTemp, Error, TEXT("Invalid World"));
-		return false;
-	}
+	if(ST_Readback == nullptr)
+		ST_Readback = new FRHIGPUBufferReadback(TEXT("AudioGPUReadback_ST"));
 
-	if (Emitters.IsEmpty())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("No emitters to trace"));
-		return true;
-	}
-
-	if (!IsValid(ListenerComponent.Get()))
-	{
-		UE_LOG(LogTemp, Error, TEXT("Invalid Listener Component"));
-		return false;
-	}
-	/*FVector3f ListenerPos = FVector3f(ListenerComponent.Get()->GetComponentLocation());
-
-	FSceneInterface* Scene = World->Scene;
-
-	ERHIFeatureLevel::Type FeatureLevel = Scene->GetFeatureLevel();
-
-	TArray<TWeakObjectPtr<USceneComponent>> EmitterComponents = Emitters;
-
-	FRHIGPUBufferReadback* ReadbackCopy = ST_Readback;*/
-
-	return true;
+	if(ST_ViewExtension == nullptr)
+	ST_ViewExtension = FSceneViewExtensions::NewExtension<FSoudTracingViewExtension>(this);
 }
+
+void UAudioGPUSubsystem::StopSoundTracing()
+{
+	delete ST_Readback;
+	ST_Readback = nullptr;
+
+	if (ST_ViewExtension == nullptr) return;
+
+	{
+		ST_ViewExtension->IsActiveThisFrameFunctions.Empty();
+		FSceneViewExtensionIsActiveFunctor IsActiveFunctor;
+
+		IsActiveFunctor.IsActiveFunction = [](const ISceneViewExtension* SceneViewExtension, const FSceneViewExtensionContext& Context)
+			{
+				return TOptional<bool>(false);
+			};
+
+		ST_ViewExtension->IsActiveThisFrameFunctions.Add(IsActiveFunctor);
+	}
+
+	ST_ViewExtension.Reset();
+	ST_ViewExtension = nullptr;
+}
+/*
+void IAudioEmitterGPU::ReceiveSoundTraceData(const FSoundTraceResult& Data)
+{}
+
+const USceneComponent* IAudioEmitterGPU::GetComponent()
+{
+	return nullptr;
+}
+*/

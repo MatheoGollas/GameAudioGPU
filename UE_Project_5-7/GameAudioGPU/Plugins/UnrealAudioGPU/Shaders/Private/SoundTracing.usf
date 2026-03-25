@@ -4,13 +4,13 @@
 
 #include "/Plugin/UnrealAudioGPU/Public/AudioRays.ush"
 
-
+    
 RaytracingAccelerationStructure SceneBVH;
 float3 CharacterPos;
 uint NumEmitters;
 
 StructuredBuffer<float3> EmitterPosBuffer;
-//RWStructuredBuffer<float2> soundTraceBuffer; // Output buffer for ray tracing results
+RWStructuredBuffer<float4> OutputBuffer;
 
 RAY_TRACING_ENTRY_RAYGEN(SoundTracingRGS)
 {
@@ -21,27 +21,26 @@ RAY_TRACING_ENTRY_RAYGEN(SoundTracingRGS)
 
     const float3 TLASOffset = View.TLASPreViewTranslationHigh + View.TLASPreViewTranslationLow;
 
-    origin += TLASOffset;
-    target += TLASOffset;
+    float3 newOrigin = origin + TLASOffset;
+    float3 newTarget = target + TLASOffset;
 
-    float3 rayVector = target - origin;
+    float3 rayVector = newTarget - newOrigin;
 
     RayDesc Ray;
-    Ray.Origin = origin;
+    Ray.Origin = newOrigin;
     Ray.Direction = normalize(rayVector);
     Ray.TMin = 0.1f;
     Ray.TMax = length(rayVector);
  
-    // consider opaque geometries and front facing triangles only
-    uint RayFlags = RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
- 
-    // use material closest hit pay load
-    FMinimalPayload Payload = (FMinimalPayload) 0;
-	
+    uint RayFlags = RAY_FLAG_FORCE_OPAQUE;
+    
+
+    FMinimalPayload Payload = (FMinimalPayload) 0;	
     TraceRay(
         SceneBVH,   // AccelerationStructure
         RayFlags,
-        RAY_TRACING_MASK_OPAQUE,          // InstanceInclusionMask, defined by UE4
+        RAY_TRACING_MASK_OPAQUE_FP_WORLD_SPACE ,
+        //RAY_TRACING_MASK_OPAQUE,          // InstanceInclusionMask, defined by UE4
         RAY_TRACING_SHADER_SLOT_MATERIAL, // RayContributionToHitGroupIndex, defined by UE4
         RAY_TRACING_NUM_SHADER_SLOTS,     // MultiplierForGeometryContributionToShaderIndex, defined by UE4
         0,      // MissShaderIndex
@@ -49,53 +48,25 @@ RAY_TRACING_ENTRY_RAYGEN(SoundTracingRGS)
         Payload // Payload
     );
  
+    float3 hitPoint = newOrigin + Ray.Direction * Payload.HitT;
+    hitPoint -= TLASOffset; // transform back to world space
     if (Payload.IsHit())
     {
-        // Do something
+        OutputBuffer[DispatchRaysIndex().x] = float4(hitPoint, 1);
     }
     else
     {
-        // Do something else
+        OutputBuffer[DispatchRaysIndex().x] = float4(target, 0);
     }
 }
 
-//void SoundTracingMS(inout FMinimalPayload data)
-RAY_TRACING_ENTRY_MISS(SoundTracingMS,
-    FDefaultPayload, Payload)
+
+RAY_TRACING_ENTRY_MISS(SoundTracingMS, FDefaultPayload, Payload)
 {
     Payload.SetMiss();
 }
-/* 
-[shader("closesthit")]
-void SoundTracingCHS(inout FMinimalPayload data, BuiltInTriangleIntersectionAttributes attribs)
-*/
+
 RAY_TRACING_ENTRY_CLOSEST_HIT(SoundTracingCHS, FMinimalPayload, Payload, FRayTracingIntersectionAttributes, Attributes)
-{
-    Payload.HitT = 1.0f;
-}
-
-
-//#include "/Engine/Public/Platform.ush"
-
-/*#include "/Engine/Shared/RayTracingDefinitions.h"
-#include "/Engine/Shared/RayTracingBuiltInResources.h"
-*/
-
-//#ifndef VFX_TRACE_RAY_USH_INCLUDED
-//#define VFX_TRACE_RAY_USH_INCLUDED
-
-/*
-    
-RAY_TRACING_ENTRY_CLOSEST_HIT(LaserTraceCHS,
-    FDefaultPayload, Payload,
-    FRayTracingIntersectionAttributes, Attributes)
 {
     Payload.HitT = RayTCurrent();
 }
-
-RAY_TRACING_ENTRY_MISS(LaserTraceMS,
-    FDefaultPayload, Payload)
-{
-    Payload.HitT = -1;
-}
-*/

@@ -21,11 +21,11 @@ class FSoundTracingRGS : public FGlobalShader
 		SHADER_PARAMETER(FVector3f, CharacterPos)
 		SHADER_PARAMETER(uint32, NumEmitters)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FVector>, EmitterPosBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FVector4f>, OutputBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, SceneBVH)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRayTracingUniformParameters, NaniteRayTracing)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
-		//TODO: add more parameters as the shader evolves
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -113,7 +113,6 @@ private:
 	TObjectPtr<UAudioGPUSubsystem> Subsystem;
 	// TArray<ISoundTracingReceiver*> Receivers; // -> ref to where to send the data 
 	FGlobalShaderMap* InShaderMap;
-	FRHIGPUBufferReadback* Readback;
 	bool RayTraceAvailable(const FSceneView& View);
 	void AddPass_RenderThread(FRDGBuilder& GraphBuilder, const FRayTracingScene& RayTracingScene, const FViewInfo& View);
 };

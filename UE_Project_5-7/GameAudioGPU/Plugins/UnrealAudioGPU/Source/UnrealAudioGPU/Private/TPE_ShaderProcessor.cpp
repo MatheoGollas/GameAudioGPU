@@ -1,5 +1,6 @@
 #include "TPE_ShaderProcessor.h"
 
+#include "AudioGPUSubsystem.h"
 #include "GlobalShader.h"
 #include "ShaderParameterStruct.h"
 #include "RenderGraphBuilder.h"
@@ -37,7 +38,7 @@ class FTPE_ShaderProcessor : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FTPE_ShaderProcessor, "/Plugin/UnrealAudioGPU/Private/TPA_EmitterPositionning.usf", "UpdateThirdPersonEmitters", SF_Compute);
 
-void TPE_ShaderProcessorShaderInterface::AddPass_RenderThread(FRDGBuilder& GraphBuilder, FGlobalShaderMap* InShaderMap, FVector3f InListenerPos, FVector3f InCharacterPos, FRDGBufferRef BufferRef, FRHIGPUBufferReadback* Readback, TArray<TWeakObjectPtr<USceneComponent>> Components) //FRDGBufferRef
+void TPE_ShaderProcessorShaderInterface::AddPass_RenderThread(FRDGBuilder& GraphBuilder, FGlobalShaderMap* InShaderMap, FVector3f InListenerPos, FVector3f InCharacterPos, FRDGBufferRef BufferRef, FRHIGPUBufferReadback* Readback, TArray<TScriptInterface<IAudioEmitterGPU>> Components) //FRDGBufferRef
 {
 	ensure(IsInRenderingThread());
 
@@ -77,15 +78,15 @@ void TPE_ShaderProcessorShaderInterface::AddPass_RenderThread(FRDGBuilder& Graph
 
 			const int maxIndex = FMath::Min(Components.Num(), (int)numElements);
 
-			TArray<TPair<TWeakObjectPtr<USceneComponent>, FVector>> PendingUpdates;
+			TArray<TPair<TScriptInterface<IAudioEmitterGPU>, FVector>> PendingUpdates;
 			PendingUpdates.Reserve(maxIndex);
 
 			for (int i = 0; i < maxIndex; i++)
 			{
-				if (Components[i].IsValid())
+				PendingUpdates.Emplace(Components[i], FVector(buffer[i]));
+				/*if (Components[i] != nullptr)
 				{
-					PendingUpdates.Emplace(Components[i], FVector(buffer[i]));
-				}
+				}*/
 			}
 
 			Readback->Unlock();
@@ -94,7 +95,7 @@ void TPE_ShaderProcessorShaderInterface::AddPass_RenderThread(FRDGBuilder& Graph
 				{
 					for (const auto& Pair : PendingUpdates)
 					{
-						USceneComponent* cmpnt = Pair.Key.Get();
+						const USceneComponent* cmpnt = Pair.Key.GetInterface()->Execute_GetComponent(Pair.Key.GetObject());
 						if (cmpnt == nullptr)
 						{
 							continue;
