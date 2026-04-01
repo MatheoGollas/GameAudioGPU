@@ -84,6 +84,18 @@ void UAudioGPUSubsystem::SetCharacter(USceneComponent* cmpnt)
 	CharacterComponent = cmpnt;
 }
 
+void UAudioGPUSubsystem::SetSoundTracingParams(const int NewNumRaysPerEmitter, const float NewShowerRadius, const float NewDefaultRayLength, const int frameSkips)
+{
+	RaysPerEmitter = NewNumRaysPerEmitter;
+	ShowerRadius = NewShowerRadius;
+	DefaultRayLength = NewDefaultRayLength;
+	FrameSkips = frameSkips;
+	if (ST_ViewExtension != nullptr)
+	{
+		ST_ViewExtension->frameSkips = frameSkips;
+	}
+}
+
 bool UAudioGPUSubsystem::UpdateTPAEmitters()
 {
 	UWorld* World = GetWorld();
@@ -169,6 +181,7 @@ void UAudioGPUSubsystem::StartSoundTracing()
 
 	if(ST_ViewExtension == nullptr)
 	ST_ViewExtension = FSceneViewExtensions::NewExtension<FSoudTracingViewExtension>(this);
+	ST_ViewExtension->frameSkips = FrameSkips;
 }
 
 void UAudioGPUSubsystem::StopSoundTracing()
@@ -193,12 +206,3 @@ void UAudioGPUSubsystem::StopSoundTracing()
 	ST_ViewExtension.Reset();
 	ST_ViewExtension = nullptr;
 }
-/*
-void IAudioEmitterGPU::ReceiveSoundTraceData(const FSoundTraceResult& Data)
-{}
-
-const USceneComponent* IAudioEmitterGPU::GetComponent()
-{
-	return nullptr;
-}
-*/

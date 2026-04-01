@@ -4,20 +4,50 @@
 
 #include "/Plugin/UnrealAudioGPU/Public/AudioRays.ush"
 
+#define RAY_TYPE_DIRECT_TO_LISTENER 0
+#define RAY_TYPE_SHOWER 1
+#define RAY_TYPE_HEDGEHOG 2
+
+#define PHI 1.61803398875
+#define PI 3.14159265359
+#define GOLDEN_ANGLE_SPHERE 3.88322207745
+#define GOLDEN_ANGLE_DISC 2.39996322973
+
     
 RaytracingAccelerationStructure SceneBVH;
 float3 CharacterPos;
-uint NumEmitters;
+uint NumThreadsX;
+uint NumRaysPerEmitter;
+uint NumPatternEmitters;
+uint NumSingleEmitters;
+float ShowerRadius;
+float defaultRayLength;
 
-StructuredBuffer<float3> EmitterPosBuffer;
-RWStructuredBuffer<float4> OutputBuffer;
+StructuredBuffer<float4> EmitterPosBuffer;  // xyz: position,
+                                            // w: 2 bits for ray type (0: direct to listener  1: shower  2: hedgehog), 30 bits for upcoming stuff
+
+RWStructuredBuffer<float4> OutputBuffer;    // number of elements = NumThreadsX * NumRaysPerEmitter
 
 RAY_TRACING_ENTRY_RAYGEN(SoundTracingRGS)
 {
-    if(DispatchRaysIndex().x >= NumEmitters) return;
-    
-    float3 origin = EmitterPosBuffer[DispatchRaysIndex().x];
+    uint2 dispatchIndex = DispatchRaysIndex();
+    if(dispatchIndex.x >= NumThreadsX) return;
+    if(dispatchIndex.y >= NumRaysPerEmitter) return;
+
+    uint maxLast = NumSingleEmitters % NumRaysPerEmitter;
+    if(NumSingleEmitters > 0 && dispatchIndex.x == (NumThreadsX - 1) && dispatchIndex.y >= maxLast) return;
+
+    uint bufferRead = dispatchIndex.x < NumPatternEmitters ?
+        dispatchIndex.x :
+        NumPatternEmitters + (dispatchIndex.x - NumPatternEmitters) * NumRaysPerEmitter + dispatchIndex.y;
+
+    float4 bufferValue = EmitterPosBuffer[bufferRead];
+    float3 origin = bufferValue.xyz;
+    uint rayType = asuint(bufferValue.w);
+    rayType = rayType & 0b11;
+
     float3 target = CharacterPos;
+    float rayIndex = dispatchIndex.y;
 
     const float3 TLASOffset = View.TLASPreViewTranslationHigh + View.TLASPreViewTranslationLow;
 
@@ -25,17 +55,82 @@ RAY_TRACING_ENTRY_RAYGEN(SoundTracingRGS)
     float3 newTarget = target + TLASOffset;
 
     float3 rayVector = newTarget - newOrigin;
+    
+    float rayMax = defaultRayLength;
+    
+    switch(rayType)
+    {
+        case RAY_TYPE_SHOWER:
+        {
+            float3 rayVectorN = normalize(rayVector);
+            float3 safeVector = rayVector.x > 0.99 ? float3(0, 0, 1) : float3(1, 0, 0);
+            float3 temp = normalize(cross(rayVector, safeVector));
+            float3 up = normalize(cross(temp, rayVector));
+            float3 right = normalize(cross(rayVector, up));
 
+            float theta = rayIndex * GOLDEN_ANGLE_DISC;
+            float radius = sqrt(rayIndex / NumRaysPerEmitter) * ShowerRadius;
+            float s, c;
+            sincos(theta, s, c);
+                
+            float2 samplePoint = radius.xx;
+            samplePoint.x *= c;
+            samplePoint.y *= s;
+
+            newOrigin += right * samplePoint.x + up * samplePoint.y;
+            break;
+        }
+
+        case RAY_TYPE_HEDGEHOG:
+        {
+            float y = 1 - (rayIndex / (NumRaysPerEmitter - 1)) * 2;
+            float radius = sqrt(1 - y * y);
+
+            float theta = GOLDEN_ANGLE_SPHERE * rayIndex;
+            
+            float s, c;
+            sincos(theta, s, c);
+            float x = c * radius;
+            float z = s * radius;
+
+            rayVector = float3(x, y, z);
+
+            break;
+        }
+
+        case RAY_TYPE_DIRECT_TO_LISTENER:
+        {
+            rayMax = length(rayVector);
+            break;
+        }
+
+        default:
+        {
+            float y = 1 - (rayIndex / (NumRaysPerEmitter - 1)) * 2;
+            float radius = sqrt(1 - y * y);
+
+            float theta = GOLDEN_ANGLE_SPHERE * rayIndex;
+
+            float s, c;
+            sincos(theta, s, c);
+            float x = c * radius;
+            float z = s * radius;
+
+            rayVector = float3(x, y, z);
+            break;
+        }
+    }
+    
+    
     RayDesc Ray;
     Ray.Origin = newOrigin;
     Ray.Direction = normalize(rayVector);
     Ray.TMin = 0.1f;
-    Ray.TMax = length(rayVector);
+    Ray.TMax = rayMax;
  
     uint RayFlags = RAY_FLAG_FORCE_OPAQUE;
     
-
-    FMinimalPayload Payload = (FMinimalPayload) 0;	
+    FMinimalPayload Payload = (FMinimalPayload) 0;
     TraceRay(
         SceneBVH,   // AccelerationStructure
         RayFlags,
@@ -50,13 +145,18 @@ RAY_TRACING_ENTRY_RAYGEN(SoundTracingRGS)
  
     float3 hitPoint = newOrigin + Ray.Direction * Payload.HitT;
     hitPoint -= TLASOffset; // transform back to world space
+
+    float3 missPoint = newOrigin + Ray.Direction * Ray.TMax;
+    missPoint -= TLASOffset; // transform back to world space
+
+    int outputID = dispatchIndex.x * NumRaysPerEmitter + dispatchIndex.y;
     if (Payload.IsHit())
     {
-        OutputBuffer[DispatchRaysIndex().x] = float4(hitPoint, 1);
+        OutputBuffer[outputID] = float4(hitPoint, 1);
     }
     else
     {
-        OutputBuffer[DispatchRaysIndex().x] = float4(target, 0);
+        OutputBuffer[outputID] = float4(missPoint, 0);
     }
 }
 

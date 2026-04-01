@@ -38,6 +38,21 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SetCharacter(USceneComponent* cmpnt);
 
+	UFUNCTION(BlueprintCallable)
+	void SetSoundTracingParams(const int NewNumRaysPerEmitter, const float NewShowerRadius, const float NewDefaultRayLength, const int frameSkips);
+
+	UPROPERTY(BlueprintReadOnly)
+	int RaysPerEmitter = 128;
+	
+	UPROPERTY(BlueprintReadOnly)
+	float ShowerRadius = 50.0f;
+	
+	UPROPERTY(BlueprintReadOnly)
+	float DefaultRayLength = 100000.0f;
+
+	UPROPERTY(BlueprintReadOnly)
+	int FrameSkips = 0;
+
 	FRHIGPUBufferReadback* TPE_Readback = nullptr;
 	FRHIGPUBufferReadback* ST_Readback = nullptr;
 	TWeakObjectPtr<USceneComponent> ListenerComponent;
@@ -58,6 +73,14 @@ struct FSoundTraceResult
 	FVector4f WPos_DidHit;
 };
 
+UENUM(BlueprintType)
+enum SoundRayType
+{
+	Direct UMETA(DisplayName = "Direct hit to listener"),
+	Shower   UMETA(DisplayName = "Shower pattern"),
+	Hedgehog      UMETA(DisplayName = "HedgehogPattern")
+};
+
 
 UINTERFACE(MinimalAPI, Blueprintable)
 class UAudioEmitterGPU : public UInterface
@@ -70,8 +93,13 @@ class IAudioEmitterGPU
 	GENERATED_BODY()
 public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-	void ReceiveSoundTraceData(const FSoundTraceResult& Data);
+	void ReceiveSoundTraceData(const TArray<FSoundTraceResult>& Data);
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
 	const USceneComponent* GetComponent();
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	const SoundRayType GetRayType();
+
+
 };

@@ -19,7 +19,12 @@ class FSoundTracingRGS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FVector3f, CharacterPos)
-		SHADER_PARAMETER(uint32, NumEmitters)
+		SHADER_PARAMETER(uint32, NumThreadsX)
+		SHADER_PARAMETER(uint32, NumRaysPerEmitter)
+		SHADER_PARAMETER(uint32, NumPatternEmitters)
+		SHADER_PARAMETER(uint32, NumSingleEmitters)
+		SHADER_PARAMETER(float, ShowerRadius)
+		SHADER_PARAMETER(float, defaultRayLength)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FVector>, EmitterPosBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FVector4f>, OutputBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, SceneBVH)
@@ -109,10 +114,12 @@ public:
 
 	virtual ESceneViewExtensionFlags GetFlags() const override { return ESceneViewExtensionFlags::SubscribesToPostTLASBuild; }
 
+	short frameSkips = 0;
 private:
 	TObjectPtr<UAudioGPUSubsystem> Subsystem;
-	// TArray<ISoundTracingReceiver*> Receivers; // -> ref to where to send the data 
 	FGlobalShaderMap* InShaderMap;
+	bool waitingForReadback = false;
+	short currentFrameSkips = 1000;
 	bool RayTraceAvailable(const FSceneView& View);
 	void AddPass_RenderThread(FRDGBuilder& GraphBuilder, const FRayTracingScene& RayTracingScene, const FViewInfo& View);
 };
