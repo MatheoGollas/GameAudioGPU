@@ -25,5 +25,16 @@ namespace UnityAudioGPU
                 OnAudioStopped();
             }
         }
+
+        private void Update()
+        {
+            if(debug == null) return;
+
+            foreach (SoundTraceResult r in debug)
+            {
+                // Debug.DrawRay(transform.position, r.hitPosition);
+                Debug.DrawLine(transform.position, r.hitPosition);
+            }
+        }
     }
 }

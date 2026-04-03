@@ -138,7 +138,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &153729159
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -152,6 +152,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SoundTracingEmitter
   occlusionLowpassFreqLinear: 0.4
+  obstructionLowpassFreqLinear: 0.75
+  obstructionConeAngleRad: 3.1415927
 --- !u!4 &153729161
 Transform:
   m_ObjectHideFlags: 0
@@ -702,7 +704,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &683880130
 Transform:
   m_ObjectHideFlags: 0
@@ -825,6 +827,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnityAudioGPU.SoundTracingEmitter
   occlusionLowpassFreqLinear: 0.4
+  obstructionLowpassFreqLinear: 0.75
+  obstructionConeAngleRad: 3.1415927
 --- !u!114 &683880133
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1100,6 +1104,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnityAudioGPU.SoundTracingEmitter
   occlusionLowpassFreqLinear: 0.4
+  obstructionLowpassFreqLinear: 0.75
+  obstructionConeAngleRad: 3.1415927
 --- !u!114 &897016587
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1207,7 +1213,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1310560024
 Transform:
   m_ObjectHideFlags: 0
@@ -1236,6 +1242,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnityAudioGPU.SoundTracingEmitter
   occlusionLowpassFreqLinear: 0.4
+  obstructionLowpassFreqLinear: 0.75
+  obstructionConeAngleRad: 3.1415927
 --- !u!114 &1310560026
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1370,8 +1378,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SoundTracingContext
   rayTracingBuildFlags: 1
-  anyHitTrace: 1
   frameSkips: 2
+  subSlicingPerEmitter: 2
+  raysPerSlice: 32
 --- !u!114 &1441684079
 MonoBehaviour:
   m_ObjectHideFlags: 0

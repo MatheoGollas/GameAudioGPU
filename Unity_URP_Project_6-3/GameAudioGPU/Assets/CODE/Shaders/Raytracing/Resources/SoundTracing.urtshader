@@ -1,30 +1,88 @@
 #include "Packages/com.unity.render-pipelines.core/Runtime/UnifiedRayTracing/TraceRayAndQueryHit.hlsl"
 
+#define GOLDEN_ANGLE_DISC 2.39996322973
+
 UNIFIED_RT_DECLARE_ACCEL_STRUCT(_AccelStruct);
 
 uint _NumEmitters;
-StructuredBuffer<float3> _EmitterPositions;
-RWStructuredBuffer<int> _RayResults;
+
+StructuredBuffer<float4> _EmitterPositions;
+RWStructuredBuffer<float4> _RayResults;
 float3 _ListenerPos;
 
 void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
 {
-    uint idx = dispatchInfo.dispatchThreadID.x;
-    if (idx >= _NumEmitters)
+    uint3 id = dispatchInfo.dispatchThreadID;
+    if (id.x >= _NumEmitters)
         return;
 
-    float3 orientationVector = _ListenerPos - _EmitterPositions[idx];
-    UnifiedRT::Ray ray;
-    ray.origin = _EmitterPositions[idx];
-    ray.direction = normalize(orientationVector);
-    ray.tMin = 0.01;
-    ray.tMax = length(orientationVector) - 0.01 ;
     UnifiedRT::RayTracingAccelStruct accelStruct = UNIFIED_RT_GET_ACCEL_STRUCT(_AccelStruct);
-    /*UnifiedRT::Hit hitResult*/bool hasHit = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, 0xFFFFFFFF, ray, 0);
     
-    /*if (hitResult.IsValid())
-    {
-        // Handle found intersection
-    }*/
-    _RayResults[idx] = hasHit ? 1 : 0;
+    uint3 maxID = dispatchInfo.dispatchDimensionsInThreads;
+    uint writeID = id.x * (maxID.y * maxID.z) + id.y * maxID.z + id.z;
+    float4 input = _EmitterPositions[id.x];
+
+    float3 directHitVector = _ListenerPos - input.xyz;
+    float3 directHitDir = normalize(directHitVector);
+    float directHitLength = length(directHitVector);
+    float3 midPoint = input.xyz + directHitVector * 0.5;
+
+    float maxRadius = tan(input.w) * directHitLength * .5;
+    float3 safeVector = directHitDir.y > 0.99 ? float3(0, 0, 1) : float3(0, 1, 0);
+
+    int firstBit = firstbithigh(id.y);
+    uint doubleCutCount = 1u << (firstBit + 2);
+    float interpPlacementStep = 1.0/doubleCutCount;
+    uint stepMultiplier = id.y & ~(1u << max(firstBit,0)); //Equivalent to subtractring the previous power of 2
+    stepMultiplier = stepMultiplier * 2 + 1;
+    float interpPlacement = stepMultiplier * interpPlacementStep;
+
+    uint raysForFirstDisc = interpPlacement * maxID.z;
+    int rayID = id.z - raysForFirstDisc;
+
+    bool isFirstDisc = sign(raysForFirstDisc - id.z) > 0;
+
+    uint rayCountForDisc = maxID.z - (isFirstDisc ? raysForFirstDisc : 1 - raysForFirstDisc);
+
+    float3 lerpStart = isFirstDisc ? input.xyz : midPoint;
+    float3 lerpEnd = isFirstDisc ? midPoint : _ListenerPos;
+
+    float3 circleMid = lerp(lerpStart, lerpEnd, interpPlacement);
+
+    float circleRadius = maxRadius * (isFirstDisc ? interpPlacement : 1-interpPlacement);
+
+    rayID = abs(rayID);
+
+    float3 temp = normalize(cross(directHitDir, safeVector));
+    float3 up = normalize(cross(temp, directHitDir));
+    float3 right = normalize(cross(directHitDir, up));
+
+    float theta = rayID * GOLDEN_ANGLE_DISC;
+    float radius = sqrt(rayID / rayCountForDisc) * circleRadius;
+    float s, c;
+    sincos(theta, s, c);
+                
+    float2 samplePoint = radius.xx;
+    samplePoint.x *= c;
+    samplePoint.y *= s;
+
+    //circleMid += right * samplePoint.x + up * samplePoint.y;
+
+    float3 rayVector = circleMid - input.xyz;
+
+    float3 nRayVector = normalize(rayVector);
+
+    float influence = dot(directHitDir, nRayVector);
+    influence = max(0, influence);
+
+    UnifiedRT::Ray ray;
+    ray.origin = input.xyz;
+    ray.direction = nRayVector;
+    ray.tMin = 0.01;
+    ray.tMax = length(rayVector);
+    bool hasHit = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, 0xFFFFFFFF, ray, 0);
+
+    _RayResults[writeID].w = hasHit ? influence : -influence;
+    //_RayResults[writeID].xyz = ray.origin + ray.direction * ray.tMax;
+    _RayResults[writeID].xyz = rayCountForDisc.xxx;
 }
