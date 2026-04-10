@@ -11,8 +11,10 @@ namespace UnityAudioGPU
         protected StudioEventEmitter emitter;
         [SerializeField][Tooltip("0 means no filtering, 1 means full bandwidth filtering")][Range(0f,1f)] protected float occlusionLowpassFreqLinear = 0.75f;
         [SerializeField][Tooltip("0 means no filtering, 1 means full bandwidth filtering")][Range(0f,1f)] protected float obstructionLowpassFreqLinear = 0.75f;
-        public float obstructionConeAngleRad = Mathf.PI; 
+        [Range(0.01f,3.14f)]public float obstructionConeAngleRad = Mathf.PI * 0.5f; 
+#if SOUND_TRACING_DEBUG && UNITY_EDITOR
         protected SoundTraceResult[] debug;
+#endif
         
         protected virtual void Awake()
         {
@@ -31,7 +33,9 @@ namespace UnityAudioGPU
 
         public virtual void OnSoundTraceResult(SoundTraceResult[] result)
         {
+#if SOUND_TRACING_DEBUG && UNITY_EDITOR
             debug = result;
+#endif
 
             float directPath = 0;
             float ambiantPath = 0;

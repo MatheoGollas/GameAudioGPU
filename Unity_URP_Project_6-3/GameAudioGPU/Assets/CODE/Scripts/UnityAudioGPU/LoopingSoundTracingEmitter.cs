@@ -25,16 +25,19 @@ namespace UnityAudioGPU
                 OnAudioStopped();
             }
         }
-
+#if SOUND_TRACING_DEBUG && UNITY_EDITOR
         private void Update()
         {
             if(debug == null) return;
 
             foreach (SoundTraceResult r in debug)
             {
-                // Debug.DrawRay(transform.position, r.hitPosition);
-                Debug.DrawLine(transform.position, r.hitPosition);
+                float influenceAbs = Mathf.Abs(r.influence);
+                Color rayColor = r.DidHit ? Color.red : new (0, influenceAbs, 0);
+                Debug.DrawLine(transform.position, r.hitPosition, rayColor);
+                Debug.DrawLine(r.hitPosition, SoundTracingContext.listener.position, rayColor);
             }
         }
+#endif
     }
 }

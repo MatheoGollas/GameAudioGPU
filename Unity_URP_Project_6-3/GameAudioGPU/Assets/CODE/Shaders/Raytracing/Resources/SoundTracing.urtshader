@@ -1,5 +1,5 @@
+#pragma multi_compile _ SOUND_TRACING_DEBUG
 #include "Packages/com.unity.render-pipelines.core/Runtime/UnifiedRayTracing/TraceRayAndQueryHit.hlsl"
-
 #define GOLDEN_ANGLE_DISC 2.39996322973
 
 UNIFIED_RT_DECLARE_ACCEL_STRUCT(_AccelStruct);
@@ -7,7 +7,13 @@ UNIFIED_RT_DECLARE_ACCEL_STRUCT(_AccelStruct);
 uint _NumEmitters;
 
 StructuredBuffer<float4> _EmitterPositions;
+
+#ifdef SOUND_TRACING_DEBUG
 RWStructuredBuffer<float4> _RayResults;
+#else
+RWStructuredBuffer<float> _RayResults;
+#endif
+
 float3 _ListenerPos;
 
 void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
@@ -27,22 +33,25 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
     float directHitLength = length(directHitVector);
     float3 midPoint = input.xyz + directHitVector * 0.5;
 
-    float maxRadius = tan(input.w) * directHitLength * .5;
+    float maxRadius = tan(input.w * 0.5) * directHitLength * .5;
     float3 safeVector = directHitDir.y > 0.99 ? float3(0, 0, 1) : float3(0, 1, 0);
 
+    float3 right = normalize(cross(directHitDir, safeVector));
+    float3 up = normalize(cross(right, directHitDir));
+    
     int firstBit = firstbithigh(id.y);
     uint doubleCutCount = 1u << (firstBit + 2);
     float interpPlacementStep = 1.0/doubleCutCount;
     uint stepMultiplier = id.y & ~(1u << max(firstBit,0)); //Equivalent to subtractring the previous power of 2
     stepMultiplier = stepMultiplier * 2 + 1;
-    float interpPlacement = stepMultiplier * interpPlacementStep;
+    float interpPlacement = stepMultiplier * interpPlacementStep * 2;
 
     uint raysForFirstDisc = interpPlacement * maxID.z;
     int rayID = id.z - raysForFirstDisc;
 
-    bool isFirstDisc = sign(raysForFirstDisc - id.z) > 0;
+    bool isFirstDisc = sign(rayID) < 0;
 
-    uint rayCountForDisc = maxID.z - (isFirstDisc ? raysForFirstDisc : 1 - raysForFirstDisc);
+    uint rayCountForDisc = isFirstDisc ? raysForFirstDisc : maxID.z - raysForFirstDisc;
 
     float3 lerpStart = isFirstDisc ? input.xyz : midPoint;
     float3 lerpEnd = isFirstDisc ? midPoint : _ListenerPos;
@@ -53,27 +62,31 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
 
     rayID = abs(rayID);
 
-    float3 temp = normalize(cross(directHitDir, safeVector));
-    float3 up = normalize(cross(temp, directHitDir));
-    float3 right = normalize(cross(directHitDir, up));
-
     float theta = rayID * GOLDEN_ANGLE_DISC;
-    float radius = sqrt(rayID / rayCountForDisc) * circleRadius;
-    float s, c;
-    sincos(theta, s, c);
+    float radius = sqrt(rayID / (float)rayCountForDisc);
+    radius *= circleRadius;
+
+    float2 samplePoint;
+    sincos(theta, samplePoint.y, samplePoint.x);
                 
-    float2 samplePoint = radius.xx;
-    samplePoint.x *= c;
-    samplePoint.y *= s;
+    float2 scaledPoint = samplePoint * radius;
 
-    //circleMid += right * samplePoint.x + up * samplePoint.y;
+    float3 addVector = right * scaledPoint.x + up * scaledPoint.y;
+    float3 rayTarget = circleMid + addVector;
 
-    float3 rayVector = circleMid - input.xyz;
+    float3 rayVector = rayTarget - input.xyz;
 
     float3 nRayVector = normalize(rayVector);
 
+    float2 maxPoint = samplePoint * maxRadius;
+
+    float3 maxAddVector = right * maxPoint.x + up * maxPoint.y;
+    float3 maxTarget = circleMid + maxAddVector;
+    float3 maxRayVectorDir = normalize(maxTarget - input.xyz); 
+
     float influence = dot(directHitDir, nRayVector);
-    influence = max(0, influence);
+    float minInfluence = dot(directHitDir, maxRayVectorDir);
+    influence = smoothstep(minInfluence, 1, influence);
 
     UnifiedRT::Ray ray;
     ray.origin = input.xyz;
@@ -81,8 +94,18 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
     ray.tMin = 0.01;
     ray.tMax = length(rayVector);
     bool hasHit = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, 0xFFFFFFFF, ray, 0);
-
+    if(!hasHit)
+    {
+        float3 listenerVector = _ListenerPos - rayTarget;
+        ray.origin = rayTarget;
+        ray.direction = normalize(listenerVector);
+        ray.tMax = length(listenerVector);
+        hasHit = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, 0xFFFFFFFF, ray, 0);
+    }
+#ifdef SOUND_TRACING_DEBUG
     _RayResults[writeID].w = hasHit ? influence : -influence;
-    //_RayResults[writeID].xyz = ray.origin + ray.direction * ray.tMax;
-    _RayResults[writeID].xyz = rayCountForDisc.xxx;
+    _RayResults[writeID].xyz = rayTarget;
+#else
+    _RayResults[writeID] = hasHit ? influence : -influence;
+#endif
 }

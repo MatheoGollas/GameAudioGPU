@@ -5,7 +5,6 @@ using UnityEngine.Experimental.Rendering;
 using System.Collections.Generic;
 using System;
 using Unity.Collections;
-using System.Linq;
 
 namespace UnityAudioGPU
 {
@@ -13,8 +12,7 @@ namespace UnityAudioGPU
     {
         public static event Action OnInitialized;
         public static SoundTracingContext Instance { get; private set; }
-        
-        //[SerializeField] private bool anyHitTrace = false;
+
         [SerializeField] private BuildFlags rayTracingBuildFlags = BuildFlags.PreferFastTrace;
         [SerializeField] private int frameSkips = 0;
         [SerializeField][Min(0)][Tooltip("Note: will be used to power 2")] private int subSlicingPerEmitter = 1;
@@ -27,8 +25,21 @@ namespace UnityAudioGPU
         private RayTracingContext rtContext;
         private List<SoundTracingEmitter> emitters = new();
         private ComputeBuffer emitterPosBuffer;
-        private static Transform listener;
+        public static Transform listener;
+        private bool shouldResizeEmitters = false;
         private bool shouldUpdateBVH = false;
+        private Vector4[] emitterPositionsArray;
+        private ComputeBuffer pooledResultBuffer;
+        private int pooledResultBufferSize;
+        private bool readbackInFlight;
+        private int cachedRaysPerEmitter;
+        private Action<AsyncGPUReadbackRequest> onReadbackComplete;
+        private SoundTraceResult[][] perEmitterResults;
+
+        private static readonly int ListenerPosID = Shader.PropertyToID("_ListenerPos");
+        private static readonly int NumEmittersID = Shader.PropertyToID("_NumEmitters");
+        private static readonly int EmitterPositionsID = Shader.PropertyToID("_EmitterPositions");
+        private static readonly int RayResultsID = Shader.PropertyToID("_RayResults");
 
         private void Awake()
         {
@@ -57,6 +68,12 @@ namespace UnityAudioGPU
             };
 
             rayTracingAccelStruct = rtContext.CreateAccelerationStructure(options);
+            onReadbackComplete = OnReadbackComplete;
+
+#if SOUND_TRACING_DEBUG && UNITY_EDITOR
+            GlobalKeyword debugKeyword = GlobalKeyword.Create("SOUND_TRACING_DEBUG");
+            Shader.EnableKeyword(debugKeyword);
+#endif
         }
 
         private void Start()
@@ -99,6 +116,7 @@ namespace UnityAudioGPU
             rayTracingAccelStruct.Dispose();
             rtContext.Dispose();
             emitterPosBuffer?.Release();
+            pooledResultBuffer?.Release();
         }
 
         private void Update()
@@ -107,6 +125,7 @@ namespace UnityAudioGPU
             else skipFrameLeft = frameSkips;
             
             if(emitters == null || listener == null) return;
+            if(readbackInFlight) return;
 
             if(shouldUpdateBVH) UpdateBVH();
 
@@ -115,48 +134,70 @@ namespace UnityAudioGPU
             uint threadCountY = 1u << subSlicingPerEmitter;
             int threadCountZ = Mathf.NextPowerOfTwo(raysPerSlice);
 
-            if(!SetupBuffer(out ComputeBuffer resultBuffer, new Vector3Int(threadCountX, (int)threadCountY, threadCountZ))) return;
+            if(!SetupBuffer(new Vector3Int(threadCountX, (int)threadCountY, threadCountZ))) return;
 
             GraphicsBuffer traceScratchBuffer = RayTracingHelper.CreateScratchBufferForTrace(rayTracingShader, (uint)threadCountX, threadCountY, (uint)threadCountZ);
-            rayTracingShader.SetVectorParam(cb, Shader.PropertyToID("_ListenerPos"), listener.position);
-            rayTracingShader.SetIntParam(cb, Shader.PropertyToID("_NumEmitters"), numItems);
-            rayTracingShader.SetBufferParam(cb, Shader.PropertyToID("_EmitterPositions"), emitterPosBuffer);
-            rayTracingShader.SetBufferParam(cb, Shader.PropertyToID("_RayResults"), resultBuffer);
+            rayTracingShader.SetVectorParam(cb, ListenerPosID, listener.position);
+            rayTracingShader.SetIntParam(cb, NumEmittersID, numItems);
+            rayTracingShader.SetBufferParam(cb, EmitterPositionsID, emitterPosBuffer);
+            rayTracingShader.SetBufferParam(cb, RayResultsID, pooledResultBuffer);
             rayTracingShader.Dispatch(cb, traceScratchBuffer, (uint)threadCountX, threadCountY, (uint)threadCountZ);
 
             Graphics.ExecuteCommandBuffer(cb);
             cb.Clear();
             traceScratchBuffer?.Dispose();
 
-            AsyncGPUReadback.Request(resultBuffer, (req) =>
+            cachedRaysPerEmitter = (int)threadCountY * threadCountZ;
+            readbackInFlight = true;
+            AsyncGPUReadback.Request(pooledResultBuffer, onReadbackComplete);
+        }
+
+        private void OnReadbackComplete(AsyncGPUReadbackRequest req)
+        {
+            readbackInFlight = false;
+
+            if(req.hasError)
             {
-                if(req.hasError)
-                {
-                    Debug.LogError("GPU readback error");
-                    resultBuffer.Dispose();
-                    emitterPosBuffer.Dispose();
-                    return;
-                }
+                Debug.LogError("GPU readback error");
+                return;
+            }
 
-                NativeArray<Vector4> results = req.GetData<Vector4>();
-                int raysPerEmitter = (int)threadCountY * threadCountZ;
-                for (int i = 0; i < emitters.Count; i++)
-                {
-                    SoundTraceResult[] emitterResults = new SoundTraceResult[raysPerEmitter];
-                    for (int j = 0; j < raysPerEmitter; j++)
-                    {
-                        emitterResults[j] = new SoundTraceResult { influence = results[i * raysPerEmitter + j].w, hitPosition = new Vector3(results[i * raysPerEmitter + j].x, results[i * raysPerEmitter + j].y, results[i * raysPerEmitter + j].z) };
-                        /*Vector3 debugPos = new Vector3(results[i * raysPerEmitter + j].x, results[i * raysPerEmitter + j].y, results[i * raysPerEmitter + j].z);
-                        Debug.DrawRay(emitters[i].transform.position, debugPos);*/
-                    }
-                    emitters[i].OnSoundTraceResult(emitterResults);
-                }
+            int raysPerEmitter = cachedRaysPerEmitter;
+            int emitterCount = emitters.Count;
 
-                results.Dispose();
-                
-                resultBuffer.Dispose();
-                emitterPosBuffer.Dispose();
-            });
+            if(perEmitterResults == null || perEmitterResults.Length != emitterCount)
+                perEmitterResults = new SoundTraceResult[emitterCount][];
+
+#if SOUND_TRACING_DEBUG && UNITY_EDITOR
+            NativeArray<Vector4> results = req.GetData<Vector4>();
+
+            for (int i = 0; i < emitterCount; i++)
+            {
+                if(perEmitterResults[i] == null || perEmitterResults[i].Length != raysPerEmitter)
+                    perEmitterResults[i] = new SoundTraceResult[raysPerEmitter];
+
+                for (int j = 0; j < raysPerEmitter; j++)
+                {
+                    int idx = i * raysPerEmitter + j;
+                    perEmitterResults[i][j] = new SoundTraceResult { influence = results[idx].w, hitPosition = new Vector3(results[idx].x, results[idx].y, results[idx].z) };
+                }
+                emitters[i].OnSoundTraceResult(perEmitterResults[i]);
+            }
+#else
+            NativeArray<float> results = req.GetData<float>();
+            for (int i = 0; i < emitterCount; i++)
+            {
+                if(perEmitterResults[i] == null || perEmitterResults[i].Length != raysPerEmitter)
+                    perEmitterResults[i] = new SoundTraceResult[raysPerEmitter];
+
+                for (int j = 0; j < raysPerEmitter; j++)
+                {
+                    int idx = i * raysPerEmitter + j;
+                    perEmitterResults[i][j] = new SoundTraceResult { influence = results[idx] };
+                }
+                emitters[i].OnSoundTraceResult(perEmitterResults[i]);
+            }
+#endif
         }
 
         private void UpdateBVH()
@@ -168,29 +209,42 @@ namespace UnityAudioGPU
             buildScratchBuffer?.Dispose();
         }
 
-        private bool SetupBuffer(out ComputeBuffer resultBuffer, Vector3Int dispatchSize)
-        {
+        private bool SetupBuffer(Vector3Int dispatchSize)
+        {               
             int numRays = dispatchSize.x * dispatchSize.y * dispatchSize.z;
-            if(emitters == null || emitters.Count == 0)
-            {
-                resultBuffer = null;
-                return false;
-            }
-            emitterPosBuffer = new(emitters.Count, sizeof(float) * 4, ComputeBufferType.Default, ComputeBufferMode.Dynamic);
-            resultBuffer = new(numRays, sizeof(float) * 4, ComputeBufferType.Default, ComputeBufferMode.Dynamic);
+            if(emitters == null || emitters.Count == 0) return false;
 
-            Vector4[] emitterPositions = new Vector4[emitters.Count];
-            for (int i = 0; i < emitters.Count; i++)
+#if SOUND_TRACING_DEBUG && UNITY_EDITOR
+            int sizeOfOutput = sizeof(float) * 4;
+#else
+            int sizeOfOutput = sizeof(float);
+#endif
+
+            if(pooledResultBuffer == null || pooledResultBufferSize != numRays)
+            {
+                pooledResultBuffer?.Release();
+                pooledResultBuffer = new ComputeBuffer(numRays, sizeOfOutput, ComputeBufferType.Default, ComputeBufferMode.Dynamic);
+                pooledResultBufferSize = numRays;
+            }
+
+            if(shouldResizeEmitters || emitterPosBuffer == null)
+            {
+                emitterPosBuffer?.Release();
+                emitterPosBuffer = new ComputeBuffer(emitters.Count, sizeof(float) * 4, ComputeBufferType.Default, ComputeBufferMode.Dynamic);
+                shouldResizeEmitters = false;
+            }
+
+            int count = emitters.Count;
+            if(emitterPositionsArray == null || emitterPositionsArray.Length != count)
+                emitterPositionsArray = new Vector4[count];
+
+            for (int i = 0; i < count; i++)
             {
                 Vector3 pos = emitters[i].transform.position;
                 float w = emitters[i].obstructionConeAngleRad;
-
-                emitterPositions[i] = new Vector4(pos.x, pos.y, pos.z, w);
+                emitterPositionsArray[i] = new Vector4(pos.x, pos.y, pos.z, w);
             }
-            emitterPosBuffer.SetData(emitterPositions);
-            
-            Vector4[] traceResults = Enumerable.Repeat(Vector4.zero, numRays).ToArray();
-            resultBuffer.SetData(traceResults);
+            emitterPosBuffer.SetData(emitterPositionsArray);
 
             return true;
         } 
@@ -199,12 +253,14 @@ namespace UnityAudioGPU
         {
             if(newEmitter == null) return;
             emitters.Add(newEmitter);
+            shouldResizeEmitters = true;
         }
 
         public void UnregisterEmitter(SoundTracingEmitter emitterToRemove)
         {
             if(emitterToRemove == null) return;
             emitters.Remove(emitterToRemove);
+            shouldResizeEmitters = true;
         }
 
         public static void SetListener(Transform newListener)
@@ -258,7 +314,12 @@ namespace UnityAudioGPU
     public struct SoundTraceResult
     {
         public float influence;
+
+#if SOUND_TRACING_DEBUG && UNITY_EDITOR
         public Vector3 hitPosition;
+#endif
+
         public readonly bool DidHit => influence >= 0;
+        public readonly float GetInfluence => Mathf.Abs(influence);
     }
 }
