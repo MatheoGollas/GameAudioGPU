@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="ParameterPreset" id="{231b4229-257d-486f-8cb8-3eb471b603f2}">
+		<property name="name">
+			<value>RaytracedObstruction</value>
+		</property>
+		<relationship name="folder">
+			<destination>{4b35f8e4-f37f-42c4-857a-16addb297da9}</destination>
+		</relationship>
+		<relationship name="parameter">
+			<destination>{c2b901cf-e9fb-4798-8b64-fc02c7f282ed}</destination>
+		</relationship>
+	</object>
+	<object class="GameParameter" id="{c2b901cf-e9fb-4798-8b64-fc02c7f282ed}">
+		<property name="initialValue">
+			<value>0</value>
+		</property>
+	</object>
+</objects>

@@ -17,6 +17,7 @@ namespace UnityAudioGPU
         [SerializeField] private int frameSkips = 0;
         [SerializeField][Min(0)][Tooltip("Note: will be used to power 2")] private int subSlicingPerEmitter = 1;
         [SerializeField][Min(1)][Tooltip("Note: will be set to the next power of 2")] private int raysPerSlice = 64;
+        [SerializeField][Min(0)][Tooltip("Distance at which emitters will get their obstruction cone untouched. Any emitter closer than this will have a greater obstruction angle")] private float distanceForConeAngles = 10f;
 
         private int skipFrameLeft = 0;
         private IRayTracingAccelStruct rayTracingAccelStruct;
@@ -238,10 +239,12 @@ namespace UnityAudioGPU
             if(emitterPositionsArray == null || emitterPositionsArray.Length != count)
                 emitterPositionsArray = new Vector4[count];
 
+            float invertDist = 1f / distanceForConeAngles;
             for (int i = 0; i < count; i++)
             {
                 Vector3 pos = emitters[i].transform.position;
-                float w = emitters[i].obstructionConeAngleRad;
+                float interp = Mathf.Clamp01(Vector3.Distance(pos, listener.position) * invertDist);
+                float w = Mathf.Lerp(3.0f, emitters[i].obstructionConeAngleRad, interp);
                 emitterPositionsArray[i] = new Vector4(pos.x, pos.y, pos.z, w);
             }
             emitterPosBuffer.SetData(emitterPositionsArray);

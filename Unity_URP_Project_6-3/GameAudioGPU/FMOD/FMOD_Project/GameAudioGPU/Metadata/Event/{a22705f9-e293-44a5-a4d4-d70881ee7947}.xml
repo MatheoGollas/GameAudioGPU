@@ -122,7 +122,17 @@
 	</object>
 	<object class="MixerBusFader" id="{89b4aeb1-dd78-4bd8-bfaf-ed9fa5e74965}" />
 	<object class="MixerBusFader" id="{56b37e56-ef43-4f25-8528-5048c5a5c1bf}" />
-	<object class="SpatialiserEffect" id="{e7a265b5-cd13-4f84-a13d-046be2ab22c6}" />
+	<object class="SpatialiserEffect" id="{e7a265b5-cd13-4f84-a13d-046be2ab22c6}">
+		<property name="maximumDistance">
+			<value>30</value>
+		</property>
+		<property name="overrideRange">
+			<value>true</value>
+		</property>
+		<property name="soundSize">
+			<value>3.60000014</value>
+		</property>
+	</object>
 	<object class="LowpassSimpleEffect" id="{2042e2b4-0d18-4f25-97b5-b529cc1531e3}">
 		<property name="cutoff">
 			<value>22000</value>
@@ -157,6 +167,8 @@
 		<relationship name="automationPoints">
 			<destination>{aec3e5f9-ffb8-4a0e-9940-63a8bac3de40}</destination>
 			<destination>{1a74f02c-b52c-47f0-bee0-39e1ea918943}</destination>
+			<destination>{e4d5abcf-3bcb-4f11-9cc0-a38eae9b827f}</destination>
+			<destination>{3da485cd-e796-4519-8795-99a810a357ea}</destination>
 		</relationship>
 	</object>
 	<object class="AutomationPoint" id="{aec3e5f9-ffb8-4a0e-9940-63a8bac3de40}">
@@ -169,10 +181,29 @@
 	</object>
 	<object class="AutomationPoint" id="{1a74f02c-b52c-47f0-bee0-39e1ea918943}">
 		<property name="position">
-			<value>1</value>
+			<value>0.80000000000000004</value>
 		</property>
 		<property name="value">
-			<value>10</value>
+			<value>350</value>
+		</property>
+	</object>
+	<object class="AutomationPoint" id="{e4d5abcf-3bcb-4f11-9cc0-a38eae9b827f}">
+		<property name="position">
+			<value>0.09852216748768472</value>
+		</property>
+		<property name="value">
+			<value>22000</value>
+		</property>
+		<property name="curveShape">
+			<value>0.137651667</value>
+		</property>
+	</object>
+	<object class="AutomationPoint" id="{3da485cd-e796-4519-8795-99a810a357ea}">
+		<property name="position">
+			<value>0.79600000000000004</value>
+		</property>
+		<property name="value">
+			<value>2400</value>
 		</property>
 	</object>
 </objects>

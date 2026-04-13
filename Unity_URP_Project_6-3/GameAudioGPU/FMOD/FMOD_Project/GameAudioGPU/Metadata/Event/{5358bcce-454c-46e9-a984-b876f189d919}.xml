@@ -125,7 +125,11 @@
 	</object>
 	<object class="MixerBusFader" id="{de39713b-7578-4fd2-9452-0640c0c4e184}" />
 	<object class="MixerBusFader" id="{2295bbbb-bc8a-4de7-b708-399b965f661c}" />
-	<object class="SpatialiserEffect" id="{a7ea332a-c3d7-4bc9-840a-feb261e141fb}" />
+	<object class="SpatialiserEffect" id="{a7ea332a-c3d7-4bc9-840a-feb261e141fb}">
+		<property name="panBlend">
+			<value>0.769999981</value>
+		</property>
+	</object>
 	<object class="LowpassSimpleEffect" id="{747770da-3cfc-40d1-9232-b7ae39137b3c}">
 		<property name="cutoff">
 			<value>22000</value>

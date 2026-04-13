@@ -125,7 +125,17 @@
 	</object>
 	<object class="MixerBusFader" id="{a567dfb0-b739-4866-b045-0f7df5ead951}" />
 	<object class="MixerBusFader" id="{b055da83-895a-4c18-a340-7910933faed9}" />
-	<object class="SpatialiserEffect" id="{9fdf1d47-c4f4-42cb-b2ff-da54cef74904}" />
+	<object class="SpatialiserEffect" id="{9fdf1d47-c4f4-42cb-b2ff-da54cef74904}">
+		<property name="distanceRolloffType">
+			<value>1</value>
+		</property>
+		<property name="maximumDistance">
+			<value>30</value>
+		</property>
+		<property name="overrideRange">
+			<value>true</value>
+		</property>
+	</object>
 	<object class="LowpassSimpleEffect" id="{273fdfc7-91f0-45e4-b9b3-05425ad1ce3f}">
 		<property name="cutoff">
 			<value>22000</value>
@@ -160,6 +170,8 @@
 		<relationship name="automationPoints">
 			<destination>{aa3afd38-d0c2-476a-beff-6ce8de8cf00d}</destination>
 			<destination>{290b10dd-f5a2-4ad1-8e9d-b30ffcdf7a33}</destination>
+			<destination>{58cfaef9-a622-4cd3-b505-a2c5b2d4753d}</destination>
+			<destination>{d52a72ee-06c9-4a03-b057-14f613bcecbb}</destination>
 		</relationship>
 	</object>
 	<object class="AutomationPoint" id="{aa3afd38-d0c2-476a-beff-6ce8de8cf00d}">
@@ -176,6 +188,25 @@
 		</property>
 		<property name="value">
 			<value>22000</value>
+		</property>
+	</object>
+	<object class="AutomationPoint" id="{58cfaef9-a622-4cd3-b505-a2c5b2d4753d}">
+		<property name="position">
+			<value>0.10000000000000001</value>
+		</property>
+		<property name="value">
+			<value>22000</value>
+		</property>
+		<property name="curveShape">
+			<value>0.186367765</value>
+		</property>
+	</object>
+	<object class="AutomationPoint" id="{d52a72ee-06c9-4a03-b057-14f613bcecbb}">
+		<property name="position">
+			<value>0.95000000000000007</value>
+		</property>
+		<property name="value">
+			<value>300</value>
 		</property>
 	</object>
 </objects>

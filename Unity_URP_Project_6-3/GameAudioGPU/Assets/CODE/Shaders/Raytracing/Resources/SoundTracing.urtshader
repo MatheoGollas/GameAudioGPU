@@ -87,25 +87,32 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
     float influence = dot(directHitDir, nRayVector);
     float minInfluence = dot(directHitDir, maxRayVectorDir);
     influence = smoothstep(minInfluence, 1, influence);
+    influence *= influence;
 
+    UnifiedRT::Hit hit;
     UnifiedRT::Ray ray;
+
     ray.origin = input.xyz;
     ray.direction = nRayVector;
     ray.tMin = 0.01;
     ray.tMax = length(rayVector);
-    bool hasHit = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, 0xFFFFFFFF, ray, 0);
-    if(!hasHit)
-    {
-        float3 listenerVector = _ListenerPos - rayTarget;
-        ray.origin = rayTarget;
-        ray.direction = normalize(listenerVector);
-        ray.tMax = length(listenerVector);
-        hasHit = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, 0xFFFFFFFF, ray, 0);
-    }
+
+    hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, 0xFFFFFFFF, ray, 0);
+
+    float3 newOrigin = hit.IsValid() ? ray.origin + ray.direction * hit.hitDistance : rayTarget;
+
+    float3 listenerVector = _ListenerPos - newOrigin;
+    ray.origin = newOrigin;
+    ray.direction = normalize(listenerVector);
+    ray.tMax = length(listenerVector);
+    hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, 0xFFFFFFFF, ray, 0);
+
+    [flatten] if(hit.IsValid()) influence *= 0.5;
+    
 #ifdef SOUND_TRACING_DEBUG
-    _RayResults[writeID].w = hasHit ? influence : -influence;
-    _RayResults[writeID].xyz = rayTarget;
+    _RayResults[writeID].w = hit.IsValid() ? influence : -influence;
+    _RayResults[writeID].xyz = newOrigin;
 #else
-    _RayResults[writeID] = hasHit ? influence : -influence;
+    _RayResults[writeID] = hit.IsValid() ? influence : -influence;
 #endif
 }
