@@ -39,12 +39,14 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
     float3 right = normalize(cross(directHitDir, safeVector));
     float3 up = normalize(cross(right, directHitDir));
     
-    int firstBit = firstbithigh(id.y);
-    uint doubleCutCount = 1u << (firstBit + 2);
-    float interpPlacementStep = 1.0/doubleCutCount;
+    int firstBit = firstbithigh(id.y); //Smallest power of two
+    uint doubleCutCount = 1u << (firstBit + 2); //Determine if we're on a half, quart, eight, and so on
+
     uint stepMultiplier = id.y & ~(1u << max(firstBit,0)); //Equivalent to subtractring the previous power of 2
-    stepMultiplier = stepMultiplier * 2 + 1;
-    float interpPlacement = stepMultiplier * interpPlacementStep * 2;
+    stepMultiplier = stepMultiplier * 2 + 1; //Determine on which half, quart, etc. we are - we don't want a quart to go on a half, etc.
+
+    float interpPlacementStep = 2.0/doubleCutCount;
+    float interpPlacement = stepMultiplier * interpPlacementStep;
 
     uint raysForFirstDisc = interpPlacement * maxID.z;
     int rayID = id.z - raysForFirstDisc;
