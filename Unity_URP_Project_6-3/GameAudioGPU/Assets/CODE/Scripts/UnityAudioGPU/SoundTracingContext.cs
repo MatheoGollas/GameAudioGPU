@@ -83,6 +83,8 @@ namespace UnityAudioGPU
             foreach (Renderer renderer in meshRenderers)
             {
                 if(renderer.rayTracingMode != RayTracingMode.Static) continue; //Only bake static objects for now
+                if(renderer.enabled == false) continue;
+                if(renderer.gameObject.activeSelf == false) continue;
                 Mesh mesh = renderer.GetComponent<MeshFilter>().sharedMesh;
                 if (mesh == null) continue;
                 int subMeshCount = mesh.subMeshCount;
@@ -100,7 +102,10 @@ namespace UnityAudioGPU
             RayTracingShader shader = Resources.Load<RayTracingShader>("SoundTracing");
             rayTracingShader = rtContext.CreateRayTracingShader(shader);
 
-            cb = new();
+            cb = new()
+            {
+                name = "Sound Tracing Cmd Buffer"
+            };
             GraphicsBuffer buildScratchBuffer = RayTracingHelper.CreateScratchBufferForBuild(rayTracingAccelStruct);
             rayTracingAccelStruct.Build(cb, buildScratchBuffer);
             
@@ -131,9 +136,9 @@ namespace UnityAudioGPU
             if(shouldUpdateBVH) UpdateBVH();
 
             int numItems = emitters.Count;
-            int threadCountX = Mathf.NextPowerOfTwo(numItems);
+            int threadCountX = /*Mathf.NextPowerOfTwo(numItems)*/numItems;
             uint threadCountY = 1u << subSlicingPerEmitter;
-            int threadCountZ = Mathf.NextPowerOfTwo(raysPerSlice);
+            int threadCountZ = /*Mathf.NextPowerOfTwo(raysPerSlice)*/raysPerSlice;
 
             if(!SetupBuffer(new Vector3Int(threadCountX, (int)threadCountY, threadCountZ))) return;
 

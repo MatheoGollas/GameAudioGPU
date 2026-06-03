@@ -68,6 +68,8 @@ void FSoudTracingViewExtension::PostTLASBuild_RenderThread(FRDGBuilder& GraphBui
 	if (!RayTraceAvailable(InView)) return;
 	if (!Scene->World) return;
 
+	SCOPED_NAMED_EVENT(SoundTracing_Setup, FColor::Red);
+
 	if (CVarRTEnable.GetValueOnRenderThread() == 1)
 	{
 		const FViewInfo& ViewInfo = static_cast<const FViewInfo&>(InView);
@@ -210,6 +212,7 @@ void FSoudTracingViewExtension::AddPass_RenderThread(FRDGBuilder& GraphBuilder, 
 		[Params, RayGenShader, &View, NumObjects, RaysPerObject]
 		(FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
+			SCOPED_DRAW_EVENT(RHICmdList, SoundTracingShader)
 			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenShader, *Params);
 
@@ -272,6 +275,7 @@ void FSoudTracingViewExtension::AddPass_RenderThread(FRDGBuilder& GraphBuilder, 
 
 			AsyncTask(ENamedThreads::GameThread, [PendingUpdates = MoveTemp(PendingUpdates)]()
 				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(SoundTracing_ProcessReadback);
 					for (const TPair<TScriptInterface<IAudioEmitterGPU>, TArray<FVector4f>>& Pair : PendingUpdates)
 					{
 						const TScriptInterface<IAudioEmitterGPU> emitter = Pair.Key;
